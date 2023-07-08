@@ -1,5 +1,5 @@
 export class CommandArgument {
-    name: string;
-    required: boolean;
-    dataType: string;
+    name: string | undefined;
+    required: boolean | undefined;
+    dataType: string | undefined;
 }

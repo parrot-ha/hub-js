@@ -1,7 +1,4 @@
-const { Logger: log } = require("../services/logger-service");
-const { sendEvent } = require("../services/device-helper");
-
-const deviceHandlerId = '2fc8d33b-67a0-4e67-b6db-c9ac062a70f0';
+const deviceHandlerId = "2fc8d33b-67a0-4e67-b6db-c9ac062a70f0";
 
 const metadata = {
   definition: {
@@ -18,6 +15,7 @@ function parse(description) {
 }
 
 function open() {
+  log.debug("open!");
   sendEvent({ name: "contact", value: "open" });
 }
 

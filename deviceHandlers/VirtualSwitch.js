@@ -1,6 +1,3 @@
-const { Logger: log } = require("../services/logger-service");
-const { sendEvent } = require("../services/device-helper");
-
 const deviceHandlerId = "bacc991c-40a8-4d6f-a7ff-86223bfd97f7";
 
 const metadata = {

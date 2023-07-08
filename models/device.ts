@@ -1,11 +1,11 @@
 export class Device {
-    id: string;
-    deviceHandlerId: string;
-    name: string;
-    label: string;
-    deviceNetworkId: string;
-    parentDeviceId: string;
-    parentSmartApp: string;
-    created: Date;
-    updated: Date;
+  id: string | undefined;
+  deviceHandlerId: string | undefined;
+  name: string | undefined;
+  label: string | undefined;
+  deviceNetworkId: string | undefined;
+  parentDeviceId: string | undefined;
+  parentSmartApp: string | undefined;
+  created: Date | undefined;
+  updated: Date | undefined;
 }

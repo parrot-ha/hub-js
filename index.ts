@@ -1,55 +1,60 @@
-const express = require("express");
-// import * as express from "express";
-// import * as fs from "fs";
+import express, { Application, Request, Response } from "express";
 const fs = require("fs");
+const path = require("path");
 const { NodeVM } = require("vm2");
-// import NodeVM from "vm2";
-// import { runDeviceMethod } from "./services/entity-service";
-const { runDeviceMethod } = require("./services/entity-service");
 
-// process device handlers before starting the api
-const {
-  processDeviceHandlers,
-  getDeviceHandlers,
-  addDevice,
-  getDevices,
-  getDevice,
-  processDevices,
-} = require("./services/device-service");
-processDeviceHandlers();
-processDevices();
+import { DeviceService } from "./services/device-service";
+import { ServiceFactory } from "./services/service-factory";
+import { EventService } from "./services/event-service";
+import { SmartAppService } from "./services/smart-app-service";
+import { EntityService } from "./services/entity-service";
 
-const app = express();
+let deviceService: DeviceService =
+  ServiceFactory.getInstance().getDeviceService();
 
+let smartAppService: SmartAppService =
+  ServiceFactory.getInstance().getSmartAppService();
+
+let entityService: EntityService =
+  ServiceFactory.getInstance().getEntityService();
+
+let eventService: EventService = ServiceFactory.getInstance().getEventService();
+eventService.addDeviceSubscription("123", "456", "contact", "myMethod", null);
+
+const app: Application = express();
 app.set("view engine", "ejs");
 app.use(express.json()); // for parsing application/json
 
-app.get("/", function (req: any, res: any) {
+//TODO: these ejs pages are temporary until we get the real ui.
+
+app.get("/", function (req: Request, res: Response) {
   res.render("pages/index");
 });
 
-app.get("/devices", function (req: any, res: any) {
-  res.render("pages/devices", { devices: getDevices() });
+app.get("/devices", function (req: Request, res: Response) {
+  res.render("pages/devices", { devices: deviceService.getDevices() });
 });
 
-app.get("/devices/:id", function (req: any, res: any) {
-  res.render("pages/device", getDevice(req.params.id));
+app.get("/devices/:id", function (req: Request, res: Response) {
+  res.render("pages/device", deviceService.getDevice(req.params.id));
 });
 
-app.get("/add-device", function (req: any, res: any) {
-  res.render("pages/add-device", { deviceHandlers: getDeviceHandlers() });
+app.get("/add-device", function (req: Request, res: Response) {
+  res.render("pages/add-device", {
+    deviceHandlers: deviceService.getDeviceHandlers(),
+  });
 });
 
 //TODO: move to routes/controllers
 
-app.get("/api/devices", (req: any, res: any) => {
-  res.json(getDevices());
+app.get("/api/devices", (req: Request, res: Response) => {
+  res.json(deviceService.getDevices());
 });
 
 // add device
-app.post("/api/devices", (req: any, res: any) => {
+app.post("/api/devices", (req: Request, res: Response) => {
   let deviceParams = req.body;
-  let deviceId = addDevice(
+  let deviceId = deviceService.addDevice(
     deviceParams.nameInput,
     deviceParams.label,
     deviceParams.deviceNetworkId,
@@ -58,21 +63,52 @@ app.post("/api/devices", (req: any, res: any) => {
   res.json({ id: deviceId });
 });
 
-app.get("/api/devices/:id", (req: any, res: any) => {
-  res.json(getDevice(req.params.id));
+app.get("/api/devices/:id", (req: Request, res: Response) => {
+  res.json(deviceService.getDevice(req.params.id));
 });
 
-app.post("/api/devices/:id/commands/:command", (req: any, res: any) => {
-  const deviceId = req.params.id;
-  const command = req.params.command;
-  const body = req.body;
-  if (body != null && Array.isArray(body) && body.length > 0) {
-    runDeviceMethod(deviceId, command, body);
-  } else {
-    runDeviceMethod(deviceId, command);
-  }
-  res.status(202).end();
+app.get("/api/devices/:id/commands", (req: Request, res: Response) => {
+  let deviceId = req.params.id;
+  let device = deviceService.getDevice(deviceId);
+  let deviceHandler = deviceService.getDeviceHandler(device.deviceHandlerId);
 });
+
+app.post(
+  "/api/devices/:id/commands/:command",
+  (req: Request, res: Response) => {
+    const deviceId = req.params.id;
+    const command = req.params.command;
+    const body = req.body;
+    if (body != null && Array.isArray(body) && body.length > 0) {
+      entityService.runDeviceMethod(deviceId, command, body);
+    } else {
+      entityService.runDeviceMethod(deviceId, command, null);
+    }
+    res.status(202).end();
+  }
+);
+
+app.post(
+  "/api/installed-smart-apps/:id/methods/:method",
+  (req: Request, res: Response) => {
+    const installedSmartAppId = req.params.id;
+    const method = req.params.method;
+
+    let prom: Promise<any> = entityService.runSmartAppMethod(
+      installedSmartAppId,
+      method,
+      null
+    );
+    prom
+      .then(() => {
+        res.status(200).end();
+      })
+      .catch((err) => {
+        console.log(err);
+        res.status(500).end();
+      });
+  }
+);
 
 const port = process.env.PORT || 6501;
 app.listen(port, () => {
