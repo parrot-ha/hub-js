@@ -85,7 +85,7 @@ export class SmartAppService {
     try {
       const isaDirFiles: string[] = fs.readdirSync("installedSmartApps/");
       isaDirFiles.forEach((isaDirFile) => {
-        if (isaDirFile.endsWith(".yml")) {
+        if (isaDirFile.endsWith(".yaml")) {
           const data = fs.readFileSync(
             `installedSmartApps/${isaDirFile}`,
             "utf-8"
@@ -124,7 +124,7 @@ export class SmartAppService {
     fs.mkdirSync("installedSmartApps/");
     this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
       fs.writeFile(
-        `installedSmartApps/${isa.id}.yml`,
+        `installedSmartApps/${isa.id}.yaml`,
         YAML.stringify(isa),
         (err: any) => {
           if (err) throw err;

@@ -131,3 +131,6 @@ dist
 
 # parrot hub runtime files
 devices
+userDeviceHandlers
+installedSmartApps
+config

@@ -101,7 +101,7 @@ export class DeviceService {
     try {
       const devDirFiles: string[] = fs.readdirSync("devices/");
       devDirFiles.forEach((devDirFile) => {
-        if (devDirFile.endsWith(".yml")) {
+        if (devDirFile.endsWith(".yaml")) {
           const data = fs.readFileSync(`devices/${devDirFile}`, "utf-8");
           let parsedFile = YAML.parse(data);
           let device = new Device();
@@ -122,7 +122,7 @@ export class DeviceService {
     fs.mkdirSync("devices/");
     this.getDevices().forEach((device: Device) => {
       fs.writeFile(
-        `devices/${device.id}.yml`,
+        `devices/${device.id}.yaml`,
         YAML.stringify(device),
         (err: any) => {
           if (err) throw err;
