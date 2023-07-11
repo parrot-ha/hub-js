@@ -2,9 +2,10 @@ import { CommandArgument } from "./command-argument";
 
 export class Command {
   name: string;
-  arguments: CommandArgument[] | undefined;
+  arguments: CommandArgument[];
 
-  constructor(name: string) {
+  constructor(name: string, cmdArguments: CommandArgument[] = null) {
     this.name = name;
+    this.arguments = cmdArguments;
   }
 }

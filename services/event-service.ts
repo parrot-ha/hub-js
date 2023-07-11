@@ -147,8 +147,8 @@ private getSubscriptionInfoById(subscriptionId: string): Subscription {
     >();
 
     try {
-      if (fs.existsSync("config/subscriptions.yaml")) {
-        const data = fs.readFileSync("config/subscriptions.yaml", "utf-8");
+      if (fs.existsSync("userData/config/subscriptions.yaml")) {
+        const data = fs.readFileSync("userData/config/subscriptions.yaml", "utf-8");
         if (data) {
           let parsedFile = YAML.parse(data);
           if (parsedFile && Array.isArray(parsedFile)) {
@@ -184,11 +184,8 @@ private getSubscriptionInfoById(subscriptionId: string): Subscription {
   private saveSubscriptionInfo(): void {
     if (this._subscriptionInfo != null) {
       try {
-        if (!fs.existsSync("config/")) {
-          fs.mkdirSync("config/");
-        }
         fs.writeFile(
-          "config/subscriptions.yaml",
+          "userData/config/subscriptions.yaml",
           YAML.stringify(Array.from(this._subscriptionInfo.values())),
           (err: any) => {
             if (err) throw err;

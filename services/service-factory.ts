@@ -1,3 +1,4 @@
+import { DeviceFileDataStore } from "../data-store/device-file-data-store";
 import { DeviceService } from "./device-service";
 import { EntityService } from "./entity-service";
 import { EventService } from "./event-service";
@@ -19,7 +20,7 @@ export class ServiceFactory {
 
   getDeviceService(): DeviceService {
     if (!this.deviceService) {
-      this.deviceService = new DeviceService();
+      this.deviceService = new DeviceService(new DeviceFileDataStore());
     }
     return this.deviceService;
   }

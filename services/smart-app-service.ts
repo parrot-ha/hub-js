@@ -46,18 +46,12 @@ export class SmartAppService {
             data.toString() +
             "\nmodule.exports = { definition, preferences, smartAppId }";
           const mdVm = new NodeVM({
-            require: {
-              external: true,
-            },
             sandbox: {
               settings: {},
             },
           });
           const userCodeMetaData = mdVm.run(testCodeMetadata, {
-            filename: "smartApp.js",
-            require: (moduleName: string) => {
-              return path.resolve(__dirname, moduleName);
-            },
+            filename: fileName,
           });
 
           let smartApp = new SmartApp();
@@ -83,11 +77,11 @@ export class SmartAppService {
   // load installed smart apps from file system
   private processInstalledSmartApps() {
     try {
-      const isaDirFiles: string[] = fs.readdirSync("installedSmartApps/");
+      const isaDirFiles: string[] = fs.readdirSync("userData/installedSmartApps/");
       isaDirFiles.forEach((isaDirFile) => {
         if (isaDirFile.endsWith(".yaml")) {
           const data = fs.readFileSync(
-            `installedSmartApps/${isaDirFile}`,
+            `userData/installedSmartApps/${isaDirFile}`,
             "utf-8"
           );
           let parsedFile = YAML.parse(data);
@@ -121,10 +115,10 @@ export class SmartAppService {
   }
 
   private saveInstalledSmartApps() {
-    fs.mkdirSync("installedSmartApps/");
+
     this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
       fs.writeFile(
-        `installedSmartApps/${isa.id}.yaml`,
+        `userData/installedSmartApps/${isa.id}.yaml`,
         YAML.stringify(isa),
         (err: any) => {
           if (err) throw err;

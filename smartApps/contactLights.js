@@ -12,30 +12,42 @@ const definition = {
 
 function preferences() {
   page({ name: "mainPage", install: true, uninstall: true }, () => {
-    section("Select switches to control", () => {
-      input("switches", "capability.switch", {
+    section({ title: "Select switches to control" }, () => {
+      input({
+        name: "switches",
+        type: "capability.switch",
         title: "Select switch",
         multiple: true,
       });
     });
 
-    section("Select contact sensors to use", () => {
-      input("contacts", "capability.contactSensor", {
+    section({ title: "Select contact sensors to use" }, () => {
+      input({
+        name: "contacts",
+        type: "capability.contactSensor",
         title: "Select contact sensors",
         multiple: true,
       });
     });
-    section("Configure On/Off", () => {
-      input("onlyBetweenSunriseSunset", "boolean", {
+    section({ title: "Configure On/Off" }, () => {
+      input({
+        name: "onlyBetweenSunriseSunset",
+        type: "boolean",
         title: "Only turn on lights between sunset and sunrise",
       });
-      input("onSunsetOffset", "number", {
+      input({
+        name: "onSunsetOffset",
+        type: "number",
         title: "Number of minutes before or after sunset to turn on",
       });
-      input("onSunriseOffset", "number", {
+      input({
+        name: "onSunriseOffset",
+        type: "number",
         title: "Number of minutes before or after sunrise to turn on",
       });
-      input("offTime", "number", {
+      input({
+        name: "offTime",
+        type: "number",
         title: "Number of minutes to keep on",
         defaultValue: 10,
       });
@@ -79,9 +91,9 @@ function initialize() {
   log.debug("initialize");
   subscribe(settings.contacts, "contact", contactSensorEvent);
   settings.contacts.forEach((contactSensor) => {
-    log.debug(contactSensor.id)
-    log.debug(contactSensor.name)
-    contactSensor.open()
+    log.debug(contactSensor.id);
+    log.debug(contactSensor.name);
+    contactSensor.open();
   });
 }
 

@@ -79,6 +79,12 @@ export class EntityService {
     });
   }
 
+  public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
+    return this.deviceService.getDeviceHandlerPreferencesLayout(
+      deviceHandlerId
+    );
+  }
+
   public async runSmartAppMethod(
     id: string,
     methodName: string,
@@ -119,7 +125,16 @@ export class EntityService {
     sandbox["unschedule"] = smartAppDelegate.unschedule.bind(smartAppDelegate);
     let settingsObject: any = {};
 
-    let settingsHandler = {
+    let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
+    const settingsProxy = new Proxy(settingsObject, settingsHandler);
+
+    sandbox["settings"] = settingsProxy;
+
+    return sandbox;
+  }
+
+  protected buildSmartAppSettingsHandler(installedSmartApp: InstalledSmartApp) {
+    return {
       settingsCache: {},
       isaSettings: installedSmartApp.settings ? installedSmartApp.settings : [],
       shDeviceService: this.deviceService,
@@ -138,12 +153,15 @@ export class EntityService {
                   settingLookupVal = [];
                   JSON.parse(installedSmartAppSetting.value).forEach(
                     (deviceId: string) => {
-                      settingLookupVal.push(this.shEntityService.buildDeviceWrapper(deviceId));
+                      settingLookupVal.push(
+                        this.shEntityService.buildDeviceWrapper(deviceId)
+                      );
                     }
                   );
                 } else {
                   let deviceId = installedSmartAppSetting.value;
-                  settingLookupVal = this.shEntityService.buildDeviceWrapper(deviceId);
+                  settingLookupVal =
+                    this.shEntityService.buildDeviceWrapper(deviceId);
                 }
               } else {
                 settingLookupVal = null;
@@ -158,11 +176,6 @@ export class EntityService {
         return settingLookupVal ? settingLookupVal : null;
       },
     };
-    const settingsProxy = new Proxy(settingsObject, settingsHandler);
-
-    sandbox["settings"] = settingsProxy;
-
-    return sandbox;
   }
 
   protected buildDeviceWrapper(deviceId: string) {
@@ -218,11 +231,12 @@ export class EntityService {
     let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
       device.deviceHandlerId
     );
+
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
     let sandbox: any = {};
     sandbox["log"] = Logger;
     sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
-
+    sandbox["metadata"] = () => {};
     //TODO: check that method name is listed as a command
     this.runEntityMethod(
       deviceHandler.file,
@@ -246,9 +260,9 @@ export class EntityService {
     const data = fs.readFileSync(file);
 
     const vm = new NodeVM({
-      require: {
-        external: true,
-      },
+      // require: {
+      //   external: true,
+      // },
       sandbox: sandbox,
     });
 
