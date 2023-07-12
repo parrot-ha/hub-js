@@ -1,80 +1,47 @@
-const express = require("express");
-// import * as express from "express";
-// import * as fs from "fs";
+import express, { Application, Request, Response } from "express";
 const fs = require("fs");
+const path = require("path");
 const { NodeVM } = require("vm2");
-// import NodeVM from "vm2";
-// import { runDeviceMethod } from "./services/entity-service";
-const { runDeviceMethod } = require("./services/entity-service");
 
-// process device handlers before starting the api
-const {
-  processDeviceHandlers,
-  getDeviceHandlers,
-  addDevice,
-  getDevices,
-  getDevice,
-  processDevices,
-} = require("./services/device-service");
-processDeviceHandlers();
-processDevices();
+import { DeviceService } from "./services/device-service";
+import { ServiceFactory } from "./services/service-factory";
+import { setupSystem, shutdownSystem } from "./services/system-setup";
 
-const app = express();
+let deviceService: DeviceService =
+  ServiceFactory.getInstance().getDeviceService();
 
+// set up system for running
+setupSystem();
+
+const app: Application = express();
 app.set("view engine", "ejs");
 app.use(express.json()); // for parsing application/json
 
-app.get("/", function (req: any, res: any) {
+//TODO: these ejs pages are temporary until we get the real ui.
+app.get("/", function (req: Request, res: Response) {
   res.render("pages/index");
 });
 
-app.get("/devices", function (req: any, res: any) {
-  res.render("pages/devices", { devices: getDevices() });
+app.get("/devices", function (req: Request, res: Response) {
+  res.render("pages/devices", { devices: deviceService.getDevices() });
 });
 
-app.get("/devices/:id", function (req: any, res: any) {
-  res.render("pages/device", getDevice(req.params.id));
+app.get("/devices/:id", function (req: Request, res: Response) {
+  res.render("pages/device", deviceService.getDevice(req.params.id));
 });
 
-app.get("/add-device", function (req: any, res: any) {
-  res.render("pages/add-device", { deviceHandlers: getDeviceHandlers() });
-});
-
-//TODO: move to routes/controllers
-
-app.get("/api/devices", (req: any, res: any) => {
-  res.json(getDevices());
-});
-
-// add device
-app.post("/api/devices", (req: any, res: any) => {
-  let deviceParams = req.body;
-  let deviceId = addDevice(
-    deviceParams.nameInput,
-    deviceParams.label,
-    deviceParams.deviceNetworkId,
-    deviceParams.deviceType
-  );
-  res.json({ id: deviceId });
-});
-
-app.get("/api/devices/:id", (req: any, res: any) => {
-  res.json(getDevice(req.params.id));
-});
-
-app.post("/api/devices/:id/commands/:command", (req: any, res: any) => {
-  const deviceId = req.params.id;
-  const command = req.params.command;
-  const body = req.body;
-  if (body != null && Array.isArray(body) && body.length > 0) {
-    runDeviceMethod(deviceId, command, body);
-  } else {
-    runDeviceMethod(deviceId, command);
-  }
-  res.status(202).end();
-});
+// include routes/controllers
+require("./routes")(app);
 
 const port = process.env.PORT || 6501;
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`listening on ${port}`);
 });
+
+const exitFunction = () => {
+  shutdownSystem();
+  server.close(() => process.exit(0));
+};
+
+process.on("SIGTERM", exitFunction);
+process.on("SIGINT", exitFunction);

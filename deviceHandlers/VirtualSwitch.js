@@ -1,16 +1,16 @@
-const { Logger: log } = require("../services/logger-service");
-const { sendEvent } = require("../services/device-helper");
-
-const deviceHandlerId = "bacc991c-40a8-4d6f-a7ff-86223bfd97f7";
-
-const metadata = {
-  definition: {
-    name: "Virtual Switch",
-    namespace: "parrotha.device.virtual",
-    author: "parrot ha",
-    capabilities: ["Switch"],
-  },
-};
+metadata(() => {
+  definition(
+    {
+      name: "Virtual Switch",
+      namespace: "parrotha.device.virtual",
+      author: "parrot ha",
+      deviceHandlerId: "bacc991c-40a8-4d6f-a7ff-86223bfd97f7",
+    },
+    () => {
+      capability("Switch");
+    }
+  );
+});
 
 function parse(description) {
   log.debug(`parse called with ${description}`);
