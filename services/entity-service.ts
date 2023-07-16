@@ -12,10 +12,10 @@ import { DeviceHandler } from "../models/device-handler";
 import { InstalledSmartApp } from "../models/installed-smart-app";
 import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting";
 import { DeviceWrapper } from "../models/device-wrapper";
+import { DeviceSetting } from "../models/device-setting";
 
-const { NodeVM } = require("vm2");
 const fs = require("fs");
-const path = require("path");
+const vm = require("vm");
 
 export class EntityService {
   private deviceService: DeviceService;
@@ -45,7 +45,7 @@ export class EntityService {
   }
 
   private processEvent(event: Event): void {
-    console.log("process event!");
+    console.log("process event!", event);
     // skip any events that have a null name
     if (event.name == null) {
       return;
@@ -123,11 +123,10 @@ export class EntityService {
     sandbox["unsubscribe"] =
       smartAppDelegate.unsubscribe.bind(smartAppDelegate);
     sandbox["unschedule"] = smartAppDelegate.unschedule.bind(smartAppDelegate);
-    let settingsObject: any = {};
 
+    let settingsObject: any = {};
     let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
     const settingsProxy = new Proxy(settingsObject, settingsHandler);
-
     sandbox["settings"] = settingsProxy;
 
     return sandbox;
@@ -154,14 +153,17 @@ export class EntityService {
                   JSON.parse(installedSmartAppSetting.value).forEach(
                     (deviceId: string) => {
                       settingLookupVal.push(
-                        this.shEntityService.buildDeviceWrapper(deviceId)
+                        this.shEntityService.buildDeviceWrapper(
+                          this.shDeviceService.getDevice(deviceId)
+                        )
                       );
                     }
                   );
                 } else {
                   let deviceId = installedSmartAppSetting.value;
-                  settingLookupVal =
-                    this.shEntityService.buildDeviceWrapper(deviceId);
+                  settingLookupVal = this.shEntityService.buildDeviceWrapper(
+                    this.shDeviceService.getDevice(deviceId)
+                  );
                 }
               } else {
                 settingLookupVal = null;
@@ -178,9 +180,8 @@ export class EntityService {
     };
   }
 
-  protected buildDeviceWrapper(deviceId: string) {
-    let device = this.deviceService.getDevice(deviceId);
-    let deviceWrapper = new DeviceWrapper(device);
+  protected buildDeviceWrapper(device: Device) {
+    let deviceWrapper = new DeviceWrapper(device, this.deviceService);
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
@@ -190,41 +191,16 @@ export class EntityService {
         } else {
           // probably a call to a command
           //TODO: check if command from device handler
-          return this.shEntityService.getDeviceMethod(dwTarget.id, dwProp);
+          return function (...args: any[]) {
+            this.shEntityService.runDeviceMethod(dwTarget.id, dwProp, args);
+          }.bind(this);
         }
       },
     };
     return new Proxy(deviceWrapper, deviceWrapperHandler);
   }
 
-  public getDeviceMethod(id: string, methodName: string) {
-    let device: Device = this.deviceService.getDevice(id);
-    let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
-      device.deviceHandlerId
-    );
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
-    let sandbox: any = {};
-    sandbox["log"] = Logger;
-    sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
 
-    const data = fs.readFileSync(deviceHandler.file);
-
-    const vm = new NodeVM({
-      require: {
-        external: true,
-      },
-      sandbox: sandbox,
-    });
-
-    const userCode = vm.run(
-      data.toString() + `\nmodule.exports = { ${methodName} }`,
-      {
-        filename: `deviceHandler_${deviceHandler.id}.js`,
-      }
-    );
-
-    return userCode[methodName];
-  }
 
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
     let device: Device = this.deviceService.getDevice(id);
@@ -232,66 +208,90 @@ export class EntityService {
       device.deviceHandlerId
     );
 
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
+
+    //TODO: check that method name is listed as a command
+    try {
+      this.runEntityMethod(
+        deviceHandler.file,
+        methodName,
+        `deviceHandler_${deviceHandler.id}`,
+        this.buildDeviceSandbox(device),
+        args
+      );
+    } catch (err) {
+      console.log("err with run device method", err);
+    }
+  }
+
+  private buildDeviceSandbox(device: Device): any {
     let sandbox: any = {};
     sandbox["log"] = Logger;
+    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
     sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
+    sandbox["httpGet"] = deviceDelegate.httpGet;
     sandbox["metadata"] = () => {};
-    //TODO: check that method name is listed as a command
-    this.runEntityMethod(
-      deviceHandler.file,
-      methodName,
-      `deviceHandler_${deviceHandler.id}`,
-      sandbox,
-      args
-    );
+    sandbox["device"] = this.buildDeviceWrapper(device);
+
+    let settingsObject: any = {};
+    let settingsHandler = this.buildDeviceSettingsHandler(device);
+    const settingsProxy = new Proxy(settingsObject, settingsHandler);
+    sandbox["settings"] = settingsProxy;
+
+    return sandbox;
+  }
+
+  protected buildDeviceSettingsHandler(device: Device) {
+    return {
+      settingsCache: {},
+      devSettings: device.settings || [],
+      get(target: any, prop: any): any {
+        let settingLookupVal = this.settingsCache[prop];
+        if (typeof settingLookupVal === "undefined") {
+          let deviceSetting: DeviceSetting = this.devSettings.find(
+            (element: DeviceSetting) => element.name == prop
+          );
+          if (typeof deviceSetting != "undefined") {
+            settingLookupVal = deviceSetting.getValueAsType();
+            this.settingsCache[prop] = settingLookupVal;
+          }
+        }
+        return settingLookupVal ? settingLookupVal : null;
+      },
+    };
   }
 
   private runEntityMethod(
     file: string,
     methodName: string,
     entityName: string,
-    sandbox: any,
+    context: any,
     args: any[]
   ): any {
-    if (!sandbox) {
-      sandbox = {};
+    if (!context) {
+      context = {};
     }
     const data = fs.readFileSync(file);
 
-    const vm = new NodeVM({
-      // require: {
-      //   external: true,
-      // },
-      sandbox: sandbox,
-    });
-
-    const userCode = vm.run(
-      data.toString() + `\nmodule.exports = { ${methodName} }`,
-      {
-        filename: `${entityName}.js`,
-      }
-    );
-
-    const method = userCode[methodName];
-    if (typeof method !== "function") {
-      console.log("NOT A METHOD");
-      return;
-    }
+    let methodCall: string;
     if (args != null && args.length > 0) {
       if (args.length == 1) {
-        method(args[0]);
+        methodCall = `${methodName}(${args[0]})`;
       } else if (args.length == 2) {
-        method(args[0], args[1]);
+        methodCall = `${methodName}(${args[0]}, ${args[1]})`;
       } else if (args.length == 3) {
-        method(args[0], args[1], args[2]);
+        methodCall = `${methodName}(${args[0]}, ${args[1]}, ${args[2]})`;
       } else if (args.length == 4) {
-        method(args[0], args[1], args[2], args[3]);
+        methodCall = `${methodName}(${args[0]}, ${args[1]}, ${args[2]}, ${args[3]})`;
       } else if (args.length == 5) {
-        method(args[0], args[1], args[2], args[3], args[4]);
+        methodCall = `${methodName}(${args[0]}, ${args[1]}, ${args[2]}, ${args[3]}, ${args[4]})`;
       }
     } else {
-      method();
+      methodCall = `${methodName}()`;
     }
+
+    vm.createContext(context);
+    vm.runInContext(data.toString() + `\n${methodCall}`, context, {
+      filename: `${entityName}.js`,
+    });
   }
 }

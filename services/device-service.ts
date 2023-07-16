@@ -1,15 +1,14 @@
 import * as crypto from "crypto";
 import { DeviceHandler, DeviceHandlerType } from "../models/device-handler";
-import YAML from "yaml";
 import { Device } from "../models/device";
 import { Event } from "../models/event";
 import { Logger } from "./logger-service";
 import { DeviceMetadataDelegate } from "../delegates/device-metadata-delegate";
 import { DeviceDataStore } from "../data-store/device-data-store";
+import { DeviceSetting } from "../models/device-setting";
 
 const fs = require("fs");
-const { NodeVM } = require("vm2");
-const path = require("path");
+const vm = require("vm");
 
 export class DeviceService {
   private _deviceDataStore: DeviceDataStore;
@@ -57,6 +56,67 @@ export class DeviceService {
     );
   }
 
+  public updateDevice(id: string, deviceMap: any, settingsMap: any): boolean {
+    let device: Device = this.getDevice(id);
+
+    if ("name" in deviceMap) {
+      device.name = deviceMap.name;
+    }
+    if ("label" in deviceMap) {
+      device.label = deviceMap.label;
+    }
+    if ("deviceHandlerId" in deviceMap) {
+      device.deviceHandlerId = deviceMap.deviceHandlerId;
+    }
+    if ("deviceNetworkId" in deviceMap) {
+      device.deviceNetworkId = deviceMap.deviceNetworkId;
+    }
+    if ("integrationId" in deviceMap) {
+      let integrationId: string = deviceMap.integrationId;
+      if (integrationId?.trim()?.length > 0) {
+        device.integration.id = integrationId;
+      } else {
+        // we are clearing the integration
+        device.integration = null;
+      }
+    }
+
+    for (let key of Object.keys(settingsMap)) {
+      let setting: any = settingsMap[key];
+      let deviceSetting: DeviceSetting = device.getSettingByName(key);
+      if (deviceSetting != null) {
+        // update existing setting
+        deviceSetting.processValueTypeAndMultiple(
+          setting.value,
+          setting.type,
+          setting.multiple
+        );
+      } else {
+        // create new setting
+        deviceSetting = new DeviceSetting(key, null, null, null);
+        deviceSetting.processValueTypeAndMultiple(
+          setting.value,
+          setting.type,
+          setting.multiple
+        );
+        device.addSetting(deviceSetting);
+      }
+    }
+    this._deviceDataStore.updateDevice(device);
+    return true;
+  }
+
+  public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
+    //TODO: call integration to remove device, for now just delete from db
+    return new Promise((resolve) => {
+      resolve(this._deviceDataStore.deleteDevice(id));
+    });
+  }
+
+  public cancelRemoveDeviceAsync(id: string): void {
+    // TODO: call integration and cancel remove device if it supports that.
+  }
+
   public saveDevice(device: Device): void {
     this._deviceDataStore.updateDevice(device);
   }
@@ -78,23 +138,22 @@ export class DeviceService {
   }
 
   public reprocessDeviceHandlers(): void {
-    // run this process in the background, allows quicker start up of system at the
+    //TODO: run this process in the background, allows quicker start up of system at the
     // expense of system starting up with possibly old device handler definition, however
     // this should be quickly rectified once system is fully running
-    new Promise(() => {
-      let deviceHandlers: DeviceHandler[] =
-        this._deviceDataStore.getDeviceHandlers();
-      let newDeviceHandlerInfoMap: Map<string, DeviceHandler> =
-        this.processDeviceHandlerInfo();
 
-      if (deviceHandlers != null && newDeviceHandlerInfoMap != null) {
-        // check each device handler info against what is in the config file.
-        this.compareNewAndExistingDeviceHandlers(
-          deviceHandlers,
-          Array.from(newDeviceHandlerInfoMap.values())
-        );
-      }
-    });
+    let deviceHandlers: DeviceHandler[] =
+      this._deviceDataStore.getDeviceHandlers();
+    let newDeviceHandlerInfoMap: Map<string, DeviceHandler> =
+      this.processDeviceHandlerInfo();
+
+    if (deviceHandlers != null && newDeviceHandlerInfoMap != null) {
+      // check each device handler info against what is in the config file.
+      this.compareNewAndExistingDeviceHandlers(
+        deviceHandlers,
+        Array.from(newDeviceHandlerInfoMap.values())
+      );
+    }
   }
 
   private compareNewAndExistingDeviceHandlers(
@@ -183,10 +242,8 @@ export class DeviceService {
       let deviceMetadataDelegate: DeviceMetadataDelegate =
         new DeviceMetadataDelegate(false, true);
       let sandbox = this.buildMetadataSandbox(deviceMetadataDelegate);
-      const mdVm = new NodeVM({
-        sandbox: sandbox,
-      });
-      mdVm.run(testCodeMetadata, {
+      vm.createContext(sandbox);
+      vm.runInContext(testCodeMetadata, sandbox, {
         filename: deviceHandler.file,
       });
       return deviceMetadataDelegate.metadataValue?.preferences;
@@ -203,12 +260,9 @@ export class DeviceService {
     let deviceMetadataDelegate: DeviceMetadataDelegate =
       new DeviceMetadataDelegate();
     let sandbox = this.buildMetadataSandbox(deviceMetadataDelegate);
-    const mdVm = new NodeVM({
-      sandbox: sandbox,
-    });
-    mdVm.run(sourceCode, {
-      filename: fileName,
-    });
+
+    vm.createContext(sandbox);
+    vm.runInContext(sourceCode, sandbox, { filename: fileName });
 
     let deviceHandler = new DeviceHandler();
 

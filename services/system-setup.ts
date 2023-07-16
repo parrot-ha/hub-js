@@ -29,6 +29,8 @@ export function setupSystem() {
   createDirectories();
   ServiceFactory.getInstance().getDeviceService().initialize();
 
+  ServiceFactory.getInstance().getSmartAppService().initialize();
+
   // create logger
   //TODO: create logger module
   winston.loggers.add('parrotLogger', {

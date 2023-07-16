@@ -1,6 +1,16 @@
-const smartAppId = "19c15ad0-f063-47db-852b-be54fb136e0e";
+// const smartAppId = "19c15ad0-f063-47db-852b-be54fb136e0e";
 
-const definition = {
+// const definition = {
+//   name: "Contact Lights",
+//   namespace: "com.parrotha",
+//   author: "Parrot HA",
+//   description: "Turn on and off lights based on contact sensors",
+//   category: "",
+//   iconUrl: "",
+//   iconX2Url: "",
+// };
+
+definition({
   name: "Contact Lights",
   namespace: "com.parrotha",
   author: "Parrot HA",
@@ -8,7 +18,8 @@ const definition = {
   category: "",
   iconUrl: "",
   iconX2Url: "",
-};
+  smartAppId: "19c15ad0-f063-47db-852b-be54fb136e0e",
+});
 
 function preferences() {
   page({ name: "mainPage", install: true, uninstall: true }, () => {

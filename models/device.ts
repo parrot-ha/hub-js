@@ -17,6 +17,9 @@ export class Device {
   created: Date | undefined;
   updated: Date | undefined;
 
+  // transient value
+  private _nameToSettingMap: Map<string, DeviceSetting>;
+
   public get displayName() {
     if (!this.label) {
       return this.name;
@@ -31,6 +34,28 @@ export class Device {
     this.settings.push(deviceSetting);
   }
 
+  public getSettingByName(name: string): DeviceSetting {
+    if (this.getNameToSettingMap() != null) {
+      return this.getNameToSettingMap().get(name);
+    } else {
+      return null;
+    }
+  }
+
+  public getNameToSettingMap(): Map<string, DeviceSetting> {
+    if (this._nameToSettingMap == null && this.settings != null) {
+      let newNameToSettingMap: Map<string, DeviceSetting> = new Map<
+        string,
+        DeviceSetting
+      >();
+      for (let setting of this.settings) {
+        newNameToSettingMap.set(setting.name, setting);
+      }
+      this._nameToSettingMap = newNameToSettingMap;
+    }
+    return this._nameToSettingMap;
+  }
+
   get integration() {
     if (!this._integration) {
       this._integration = new Integration();
@@ -42,14 +67,22 @@ export class Device {
     this._integration = integration;
   }
 
-  // public toJSON() {
-  //   return {
-  //     id: this.id,
-  //     deviceHandlerId: this.deviceHandlerId,
-  //     name: this.name,
-  //     label: this.label,
-  //     displayName: this.displayName,
-  //     deviceNetworkId: this.deviceNetworkId,
-  //   };
-  // }
+  public toJSON() {
+    return {
+      id: this.id,
+      deviceHandlerId: this.deviceHandlerId,
+      name: this.name,
+      label: this.label,
+      deviceNetworkId: this.deviceNetworkId,
+      parentDeviceId: this.parentDeviceId,
+      parentSmartApp: this.parentSmartApp,
+      integration: this.integration,
+      state: this.state,
+      data: this.data,
+      //currentStates: this.currentStates
+      settings: this.settings,
+      created: this.created,
+      updated: this.updated,
+    };
+  }
 }

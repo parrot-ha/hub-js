@@ -84,6 +84,33 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return deviceId;
   }
 
+  deleteDevice(id: string): boolean {
+    //delete file in devices
+    // get device
+    let device: Device = this.getDevice(id);
+    try {
+      let fileName: string = `userData/devices/${id}.yaml`;
+      if (fs.existsSync(fileName)) {
+        fs.unlinkSync(fileName);
+      }
+    } catch (err) {
+      console.log("Unable to delete device " + id);
+      return false;
+    }
+    try {
+      if (device) {
+        this.getDeviceDNItoIDMap().delete(
+          (device.integration?.id || "null") + ":" + device.deviceNetworkId
+        );
+      }
+      this.getDeviceCache().delete(id);
+    } catch (err) {
+      console.log(err);
+    }
+
+    return true;
+  }
+
   private addDeviceToCache(device: Device) {
     this.getDeviceCache().set(device.id, device);
     this.getDeviceDNItoIDMap().set(
@@ -152,7 +179,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
   private saveDeviceToFile(device: Device) {
     fs.writeFile(
       `userData/devices/${device.id}.yaml`,
-      YAML.stringify(device),
+      YAML.stringify(device.toJSON()),
       (err: any) => {
         if (err) throw err;
         logger.debug(`The device file ${device.id} has been saved!`);
@@ -227,7 +254,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
       try {
         fs.writeFile(
           "userData/config/deviceHandlers.yaml",
-          YAML.stringify(this.getDeviceHandlerCache()),
+          YAML.stringify(this.getDeviceHandlerCache().values()),
           (err: any) => {
             if (err) throw err;
             console.log("device handler config file has been saved!");
@@ -247,7 +274,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
     >();
     try {
       const deviceHandlersConfigFile = fs.readFileSync(
-        `userData/config/deviceHandlers.yaml`,
+        "userData/config/deviceHandlers.yaml",
         "utf-8"
       );
       if (deviceHandlersConfigFile) {

@@ -1,3 +1,4 @@
+import { SmartAppFileDataStore } from "../data-store/smart-app-file-data-store";
 import { DeviceFileDataStore } from "../data-store/device-file-data-store";
 import { DeviceService } from "./device-service";
 import { EntityService } from "./entity-service";
@@ -29,7 +30,7 @@ export class ServiceFactory {
 
   getSmartAppService(): SmartAppService {
     if (!this.smartAppService) {
-      this.smartAppService = new SmartAppService();
+      this.smartAppService = new SmartAppService(new SmartAppFileDataStore());
     }
     return this.smartAppService;
   }

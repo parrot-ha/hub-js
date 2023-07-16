@@ -1,7 +1,8 @@
 import { Device } from "../models/device";
 import { EntityService } from "../services/entity-service";
+import { EntityDelegate } from "./entity-delegate";
 
-export class DeviceDelegate {
+export class DeviceDelegate extends EntityDelegate {
   private _device: Device;
   private _entityService: EntityService;
 
@@ -9,6 +10,7 @@ export class DeviceDelegate {
     return this._device;
   }
   constructor(device: Device, entityService: EntityService) {
+    super();
     this._device = device;
     this._entityService = entityService;
   }
