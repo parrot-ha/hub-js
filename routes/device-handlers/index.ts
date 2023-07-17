@@ -1,3 +1,4 @@
+import { DeviceHandlerType } from "../../models/device-handler";
 import { DeviceService } from "../../services/device-service";
 import { EntityService } from "../../services/entity-service";
 import { Request, Response } from "express";
@@ -22,6 +23,10 @@ module.exports = function (
 
     let deviceHandlers = deviceService.getDeviceHandlers();
 
+    //let filteredDeviceHandlers = deviceHandlers;
+    if (filter === "user") {
+      deviceHandlers = deviceHandlers.filter((dh) => dh.type === DeviceHandlerType.USER);
+    }
     if (fields != null && fields.length > 0) {
       let dhList: any[] = [];
       deviceHandlers.forEach((dh) => {

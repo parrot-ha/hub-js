@@ -1,17 +1,15 @@
 import { Application, Request, Response } from "express";
 import { DeviceService } from "../services/device-service";
+import { SmartAppService } from "../services/smart-app-service";
 import { EntityService } from "../services/entity-service";
-// import { Device } from "../models/device";
-// import { DeviceHandler } from "../models/device-handler";
-// import { Command } from "../models/command";
-// import { Capability } from "../models/capability";
-// import { Capabilities } from "../models/capabilities";
-// import { DeviceSetting } from "../models/device-setting";
+import { LocationService } from "../services/location-service";
 
 module.exports = function (
   app: Application,
   deviceService: DeviceService,
-  entityService: EntityService
+  smartAppService: SmartAppService,
+  entityService: EntityService,
+  locationService: LocationService
 ) {
   //TODO: move these to separate route directories and move functionality to controllers
   //https://medium.com/@sesitamakloe/how-we-structure-our-express-js-routes-58933d02e491
@@ -22,26 +20,13 @@ module.exports = function (
     require("./device-handlers")(deviceService, entityService)
   );
   app.use("/api/integrations", require("./integrations")());
-
-  app.post(
-    "/api/installed-smart-apps/:id/methods/:method",
-    (req: Request, res: Response) => {
-      const installedSmartAppId = req.params.id;
-      const method = req.params.method;
-
-      let prom: Promise<any> = entityService.runSmartAppMethod(
-        installedSmartAppId,
-        method,
-        null
-      );
-      prom
-        .then(() => {
-          res.status(200).end();
-        })
-        .catch((err) => {
-          console.log(err);
-          res.status(500).end();
-        });
-    }
+  app.use("/api/location", require("./location")(locationService));
+  app.use(
+    "/api/installed-smart-apps",
+    require("./installed-smart-apps")(smartAppService)
+  );
+  app.use(
+    "/api/smart-apps",
+    require("./smart-apps")(smartAppService, entityService)
   );
 };

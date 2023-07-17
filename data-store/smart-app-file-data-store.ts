@@ -1,4 +1,4 @@
-import { SmartApp } from "../models/smart-app";
+import { SmartApp, SmartAppType } from "../models/smart-app";
 import { InstalledSmartApp } from "../models/installed-smart-app";
 import { SmartAppDataStore } from "./smart-app-data-store";
 import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting";
@@ -32,9 +32,16 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   deleteInstalledSmartApp(id: string): boolean {
     throw new Error("Method not implemented.");
   }
+
   getInstalledSmartAppsBySmartApp(smartAppId: string): InstalledSmartApp[] {
-    throw new Error("Method not implemented.");
+    if (smartAppId?.trim()?.length === 0) {
+      return [];
+    }
+    return this.getInstalledSmartApps()?.filter(
+      (isa) => isa.smartAppId === smartAppId
+    );
   }
+
   updateInstalledSmartAppState(
     installedSmartAppId: string,
     state: Map<string, any>
@@ -92,6 +99,11 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
             installedSmartApp.state = parsedFile.state;
             installedSmartApp.parentInstalledSmartAppId =
               parsedFile.parentInstalledSmartAppId;
+            let smartApp: SmartApp = this.getSmartApp(
+              installedSmartApp.smartAppId
+            );
+            installedSmartApp.name = smartApp.name;
+            installedSmartApp.namespace = smartApp.namespace;
             if (parsedFile.settings) {
               installedSmartApp.settings = [];
               parsedFile.settings.forEach((element: any) => {
@@ -109,6 +121,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
           }
         } catch (err) {
           logger.warn(`Error loading file ${isaDirFile}`);
+          console.log(err);
         }
       });
     } catch (err) {
@@ -124,7 +137,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     try {
       fs.writeFile(
         `userData/installedSmartApps/${isaId}.yaml`,
-        YAML.stringify(existingIsa),
+        YAML.stringify(existingIsa.toJSON()),
         (err: any) => {
           if (err) throw err;
           console.log("installed smart app file has been saved!");
@@ -194,16 +207,56 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   }
 
   deleteSmartApp(id: string): boolean {
-    throw new Error("Method not implemented.");
+    let sa: SmartApp = this.getSmartApp(id);
+    if (SmartAppType.USER === sa.type) {
+        //delete source file
+        try {
+          if (fs.existsSync(sa.file)) {
+            fs.unlinkSync(sa.file);
+          }
+        } catch (err) {
+          console.log("Unable to delete smart app " + id);
+          return false;
+        }
+    }
+
+    this.getSmartAppCache().delete(id);
+    this.saveSmartApps();
+    return true;
   }
   getSmartAppSourceCode(id: string): string {
-    throw new Error("Method not implemented.");
+    let smartApp: SmartApp = this.getSmartApp(id);
+    if (smartApp?.type == SmartAppType.USER) {
+      return fs.readFileSync(smartApp.file)?.toString();
+    }
   }
-  updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
-    throw new Error("Method not implemented.");
+
+  public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
+    let smartApp: SmartApp = this.getSmartApp(id);
+    if (smartApp?.type == SmartAppType.USER) {
+      fs.writeFile(smartApp.file, sourceCode, (err: any) => {
+        if (err) throw err;
+        return true;
+      });
+    }
+
+    return false;
   }
+
   createSmartAppSourceCode(sourceCode: string, smartApp: SmartApp): string {
-    throw new Error("Method not implemented.");
+    let fileName: string = `userData/smartApps/${smartApp.id}.js`;
+    smartApp.file = fileName;
+    try {
+      fs.writeFile(fileName, sourceCode, (err: any) => {
+        if (err) throw err;
+        // save smart app definition
+        this.createSmartApp(smartApp);
+      });
+      return smartApp.id
+    } catch (err) {
+      console.log("error when saving smartApp file", err);
+    }
+    return null;
   }
 
   private saveSmartApps(): void {

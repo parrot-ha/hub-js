@@ -1,3 +1,5 @@
+import { OAuthToken } from "./oauth-token";
+
 export enum SmartAppType {
   USER,
   SYSTEM,
@@ -24,10 +26,17 @@ export class SmartApp {
   oAuthRedirectURI: string | undefined;
   oAuthDisplayName: string | undefined;
   oAuthDisplayLink: string | undefined;
-  //oAuthTokens: OAuthToken[]
+  oAuthTokens: OAuthToken[]
 
   extensionId: string;
   type: SmartAppType;
+
+  public get oAuthEnabled(): boolean {
+    return (
+      this.oAuthClientId?.replace(/\s/g, "")?.length > 0 &&
+      this.oAuthClientSecret?.replace(/\s/g, "")?.length > 0
+    );
+  }
 
   public equalsIgnoreId(
     sa: SmartApp,

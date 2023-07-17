@@ -7,7 +7,6 @@ import { Command } from "../../models/command";
 import { Capability } from "../../models/capability";
 import { Capabilities } from "../../models/capabilities";
 import { DeviceSetting } from "../../models/device-setting";
-import { EndpointCommand } from "@zwave-js/server/dist/lib/endpoint/command";
 
 const express = require("express");
 

@@ -16,7 +16,9 @@ app.use(express.json()); // for parsing application/json
 require("./routes")(
   app,
   ServiceFactory.getInstance().getDeviceService(),
-  ServiceFactory.getInstance().getEntityService()
+  ServiceFactory.getInstance().getSmartAppService(),
+  ServiceFactory.getInstance().getEntityService(),
+  ServiceFactory.getInstance().getLocationService()
 );
 
 const port = process.env.PORT || 6501;

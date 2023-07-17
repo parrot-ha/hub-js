@@ -6,18 +6,13 @@ import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting"
 import { SmartAppMetadataDelegate } from "../delegates/smart-app-metadata-delegate";
 import { Logger } from "./logger-service";
 import { SmartAppDataStore } from "../data-store/smart-app-data-store";
+import { SmartAppInUseError } from "../errors/smart-app-in-use-error";
 
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
 export class SmartAppService {
-  private smartApps: Map<string, SmartApp> = new Map<string, SmartApp>();
-  private installedSmartApps: Map<string, InstalledSmartApp> = new Map<
-    string,
-    InstalledSmartApp
-  >();
-
   private _smartAppDataStore: SmartAppDataStore;
 
   public constructor(smartAppDataStore: SmartAppDataStore) {
@@ -52,8 +47,91 @@ export class SmartAppService {
     return this._smartAppDataStore.getInstalledSmartApp(id);
   }
 
+  public getInstalledSmartAppsBySmartApp(
+    smartAppId: string
+  ): InstalledSmartApp[] {
+    return this._smartAppDataStore.getInstalledSmartAppsBySmartApp(smartAppId);
+  }
+
   public getSmartApp(id: string): SmartApp {
     return this._smartAppDataStore.getSmartApp(id);
+  }
+
+  public deleteInstalledSmartApp(installedSmartAppId: string): boolean {
+    return this._smartAppDataStore.deleteInstalledSmartApp(installedSmartAppId);
+  }
+
+  public updateSmartApp(smartApp: SmartApp): void {
+    this._smartAppDataStore.updateSmartApp(smartApp);
+  }
+
+  public getSmartAppSourceCode(id: string): string {
+    return this._smartAppDataStore.getSmartAppSourceCode(id);
+  }
+
+  public removeSmartApp(id: string): boolean {
+    let smartAppsInUse: InstalledSmartApp[] =
+      this.getInstalledSmartAppsBySmartApp(id);
+    if (smartAppsInUse?.length > 0) {
+      throw new SmartAppInUseError("Smart App in use", smartAppsInUse);
+    } else {
+      return this._smartAppDataStore.deleteSmartApp(id);
+    }
+  }
+
+  public addSmartAppSourceCode(sourceCode: string): string {
+    let smartApp = this.processSmartAppSource(
+      "newSmartApp",
+      sourceCode,
+      SmartAppType.USER
+    );
+    if (smartApp == null) {
+      throw new Error("No definition found.");
+    }
+    let saId: string = this._smartAppDataStore.createSmartAppSourceCode(
+      sourceCode,
+      smartApp
+    );
+    return saId;
+  }
+
+  public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
+    let existingSmartApp: SmartApp = this.getSmartApp(id);
+    if (existingSmartApp) {
+      // compile source code so that any compile errors get thrown and we get any new definition changes
+      let updatedSmartApp: SmartApp = this.processSmartAppSource(
+        existingSmartApp.file,
+        sourceCode,
+        existingSmartApp.type
+      );
+      this.updateSmartAppIfChanged(existingSmartApp, updatedSmartApp);
+      return this._smartAppDataStore.updateSmartAppSourceCode(id, sourceCode);
+    }
+    throw new Error("Smart App not found.");
+  }
+
+  private updateSmartAppIfChanged(
+    oldSmartApp: SmartApp,
+    newSmartApp: SmartApp
+  ): void {
+    // if any changes are made to the new app excluding client id and client secret, then update.
+    // or if there are changes to the client id and client secret and the new app does not have it set to null
+    // this is so that it will not clear out client id and client secret that have been set by the user at runtime instead of
+    // being defined in the smart app definition.
+    if (
+      !newSmartApp.equalsIgnoreId(oldSmartApp, false) ||
+      (!newSmartApp.equalsIgnoreId(oldSmartApp, true) &&
+        newSmartApp.oAuthClientId != null &&
+        newSmartApp.oAuthClientSecret != null)
+    ) {
+      console.log("Changes for file " + newSmartApp.file);
+      newSmartApp.id = oldSmartApp.id;
+      newSmartApp.oAuthTokens = oldSmartApp.oAuthTokens;
+      this._smartAppDataStore.updateSmartApp(newSmartApp);
+    } else {
+      // only difference is the id,, so no changes
+      console.log("No changes for file " + newSmartApp.file);
+    }
   }
 
   public reprocessSmartApps(): void {
@@ -78,40 +156,34 @@ export class SmartAppService {
     newSmartApps: SmartApp[]
   ): void {
     // check each smart app info against what is in the config file.
-    for (let newSAInfo of newSmartApps) {
-      let fileName: string = newSAInfo.file;
+    for (let newSmartApp of newSmartApps) {
+      let fileName: string = newSmartApp.file;
 
-      let foundExistingSA: boolean = false;
-      for (let oldSAInfo of existingSmartApps) {
-        if (fileName === oldSAInfo.file) {
-          foundExistingSA = true;
-          // the file name matches, let see if any of the values have changed.
-          //TODO: this check is only if the file name stays the same, add another check in case all the contents stay the same, but the file name changed.
+      let existingSmartApp = existingSmartApps?.filter(
+        (esa) => esa.file === fileName
+      );
 
-          // if any changes are made to the new app excluding client id and client secret, then update.
-          // or if there are changes to the client id and client secret and the new app does not have it set to null
-          // this is so that it will not clear out client id and client secret that have been set by the user at runtime instead of
-          // being defined in the automation app definition.
-          if (
-            !newSAInfo.equalsIgnoreId(oldSAInfo, false) ||
-            (!newSAInfo.equalsIgnoreId(oldSAInfo, true) &&
-              newSAInfo.oAuthClientId != null &&
-              newSAInfo.oAuthClientSecret != null)
-          ) {
-            console.log("Changes for file " + newSAInfo.file);
-            newSAInfo.id = oldSAInfo.id;
-            //newSAInfo.oAuthTokens = oldSAInfo.oAuthTokens;
+      if (existingSmartApp) {
+        if (existingSmartApp.length > 1) {
+          console.log("Found more than one matching Smart App!");
+        } else if (
+          !newSmartApp.equalsIgnoreId(existingSmartApp[0], false) ||
+          (!newSmartApp.equalsIgnoreId(existingSmartApp[0], true) &&
+            newSmartApp.oAuthClientId != null &&
+            newSmartApp.oAuthClientSecret != null)
+        ) {
+          console.log("Changes for file " + newSmartApp.file);
+          newSmartApp.id = existingSmartApp[0].id;
+          newSmartApp.oAuthTokens = existingSmartApp[0].oAuthTokens;
 
-            this._smartAppDataStore.updateSmartApp(newSAInfo);
-          } else {
-            // only difference is the id,, so no changes
-            console.log("No changes for file " + newSAInfo.file);
-          }
+          this._smartAppDataStore.updateSmartApp(newSmartApp);
+        } else {
+          // only difference is the id,, so no changes
+          console.log("No changes for file " + newSmartApp.file);
         }
-      }
-      if (!foundExistingSA) {
+      } else {
         // we have a new smart app.
-        this._smartAppDataStore.createSmartApp(newSAInfo);
+        this._smartAppDataStore.createSmartApp(newSmartApp);
       }
     }
   }
@@ -178,8 +250,25 @@ export class SmartAppService {
       new SmartAppMetadataDelegate();
     let sandbox = this.buildMetadataContext(smartAppMetadataDelegate);
 
-    vm.createContext(sandbox);
-    vm.runInContext(sourceCode, sandbox, { filename: fileName });
+    try {
+      vm.createContext(sandbox);
+      vm.runInContext(sourceCode, sandbox, { filename: fileName });
+    } catch (err) {
+      if (err.stack.includes("SyntaxError:")) {
+        // problem with the code
+        
+        let errStack = err.stack.substring(
+          0,
+          err.stack.indexOf("at SmartAppService.processSmartAppSource")
+        );
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
+        err.message = errStack.trim();
+
+      }
+      throw err;
+    }
 
     let smartApp = new SmartApp();
     if (smartAppMetadataDelegate.metadataValue?.definition) {

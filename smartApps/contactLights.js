@@ -112,16 +112,16 @@ function contactSensorEvent(evt) {
   log.debug(`contact sensor event! ${evt}`);
 
   let offsetSunriseAndSunset = getSunriseAndSunset({
-    sunriseOffset: onSunriseOffset != null ? onSunriseOffset : 0,
-    sunsetOffset: onSunsetOffset != null ? onSunsetOffset : 0,
+    sunriseOffset: settings.onSunriseOffset || 0,
+    sunsetOffset: settings.onSunsetOffset || 0,
   });
-
-  sunrise = offsetSunriseAndSunset.sunrise.toLocalTime();
-  sunset = offsetSunriseAndSunset.sunset.toLocalTime();
-  currentTime = java.time.LocalTime.now();
-
-  if (currentTime.isBefore(sunrise) || currentTime.isAfter(sunset)) {
-    log.debug("we are at night");
+  //sunrise = offsetSunriseAndSunset.sunrise.toLocalTime();
+  //sunset = offsetSunriseAndSunset.sunset.toLocalTime();
+  currentTime = new Date();
+  if (
+    currentTime < offsetSunriseAndSunset.sunrise ||
+    currentTime > offsetSunriseAndSunset.sunset
+  ) {
     if (evt.value == "open") {
       if (!state.switchIdList) state.switchIdList = [];
 

@@ -2,16 +2,37 @@ import { DeviceWrapper } from "../models/device-wrapper";
 import { EntityWrapper } from "../models/entity-wrapper";
 import { EventService } from "../services/event-service";
 import { InstalledSmartApp } from "../models/installed-smart-app";
+import { LocationService } from "../services/location-service";
 
 export class SmartAppDelegate {
   private _eventService: EventService;
+  private _locationService: LocationService;
   private _installedSmartApp: InstalledSmartApp;
+  private _sandboxMethods: string[] = [
+    "getSunriseAndSunset",
+    "subscribe",
+    "unsubscribe",
+    "unschedule",
+    "definition",
+  ];
+
   constructor(
     installedSmartApp: InstalledSmartApp,
-    eventService: EventService
+    eventService: EventService,
+    locationService: LocationService
+
   ) {
     this._installedSmartApp = installedSmartApp;
     this._eventService = eventService;
+    this._locationService = locationService;
+  }
+
+  get sandboxMethods() {
+    return this._sandboxMethods;
+  }
+
+  public getSunriseAndSunset(): { sunrise: Date; sunset: Date } {
+    return this._locationService.getSunriseAndSunset({});
   }
 
   subscribe(
@@ -69,4 +90,10 @@ export class SmartAppDelegate {
   unschedule(handlerMethod: string): void {
     console.log("unschedule");
   }
+
+  
+  public definition(definitionInfo: any) {
+    // this function is empty because we ignore definition in normal running
+  }
+
 }

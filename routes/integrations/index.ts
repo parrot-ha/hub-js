@@ -1,5 +1,3 @@
-import { DeviceService } from "../../services/device-service";
-import { EntityService } from "../../services/entity-service";
 import { Request, Response } from "express";
 
 const express = require("express");
