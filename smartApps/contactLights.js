@@ -1,6 +1,16 @@
-const smartAppId = "19c15ad0-f063-47db-852b-be54fb136e0e";
+// const smartAppId = "19c15ad0-f063-47db-852b-be54fb136e0e";
 
-const definition = {
+// const definition = {
+//   name: "Contact Lights",
+//   namespace: "com.parrotha",
+//   author: "Parrot HA",
+//   description: "Turn on and off lights based on contact sensors",
+//   category: "",
+//   iconUrl: "",
+//   iconX2Url: "",
+// };
+
+definition({
   name: "Contact Lights",
   namespace: "com.parrotha",
   author: "Parrot HA",
@@ -8,7 +18,8 @@ const definition = {
   category: "",
   iconUrl: "",
   iconX2Url: "",
-};
+  smartAppId: "19c15ad0-f063-47db-852b-be54fb136e0e",
+});
 
 function preferences() {
   page({ name: "mainPage", install: true, uninstall: true }, () => {
@@ -101,16 +112,17 @@ function contactSensorEvent(evt) {
   log.debug(`contact sensor event! ${evt}`);
 
   let offsetSunriseAndSunset = getSunriseAndSunset({
-    sunriseOffset: onSunriseOffset != null ? onSunriseOffset : 0,
-    sunsetOffset: onSunsetOffset != null ? onSunsetOffset : 0,
+    sunriseOffset: settings.onSunriseOffset || 0,
+    sunsetOffset: settings.onSunsetOffset || 0,
   });
-
-  sunrise = offsetSunriseAndSunset.sunrise.toLocalTime();
-  sunset = offsetSunriseAndSunset.sunset.toLocalTime();
-  currentTime = java.time.LocalTime.now();
-
-  if (currentTime.isBefore(sunrise) || currentTime.isAfter(sunset)) {
-    log.debug("we are at night");
+  //sunrise = offsetSunriseAndSunset.sunrise.toLocalTime();
+  //sunset = offsetSunriseAndSunset.sunset.toLocalTime();
+  currentTime = new Date();
+  if (
+    currentTime < offsetSunriseAndSunset.sunrise ||
+    currentTime > offsetSunriseAndSunset.sunset
+  ) {
+    let openContacts = false;
     if (evt.value == "open") {
       if (!state.switchIdList) state.switchIdList = [];
 
@@ -119,19 +131,19 @@ function contactSensorEvent(evt) {
         if (currentValue != "on") {
           // turn on for x minutes
           mySwitch.on();
-          state.switchIdList.add(mySwitch.id);
+          state.switchIdList.push(mySwitch.id);
         }
-        log.debug("${mySwitch.id} current value ${currentValue}");
+        log.debug(`${mySwitch.id} current value ${currentValue}`);
       });
       state.switchIdList = [...new Set(state.switchIdList)];
       // turn off lights in "offTime" minutes
       if (state.switchIdList && !openContacts) {
-        runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
           data: { switchIdList: state.switchIdList },
         });
       }
     } else if (evt.value == "closed") {
-      let openContacts = false;
+      
       settings.contacts.forEach((contactSensor) => {
         let currentValue = contactSensor.currentValue("contact");
         if (currentValue == "open") {
@@ -140,7 +152,7 @@ function contactSensorEvent(evt) {
       });
       // reschedule lights to turn off in "offTime" minutes when a closed event happens
       if (state.switchIdList && !openContacts) {
-        runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
           data: { switchIdList: state.switchIdList },
         });
       }
@@ -162,7 +174,7 @@ function turnOffLights(data) {
   });
 
   if (openContacts) {
-    runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+    runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
       data: { switchIdList: state.switchIdList },
     });
   } else {

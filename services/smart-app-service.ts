@@ -1,124 +1,220 @@
 import * as crypto from "crypto";
 import { InstalledSmartApp } from "../models/installed-smart-app";
-import { SmartApp } from "../models/smart-app";
+import { SmartApp, SmartAppType } from "../models/smart-app";
 import YAML from "yaml";
 import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting";
+import { SmartAppMetadataDelegate } from "../delegates/smart-app-metadata-delegate";
+import { Logger } from "./logger-service";
+import { SmartAppDataStore } from "../data-store/smart-app-data-store";
+import { SmartAppInUseError } from "../errors/smart-app-in-use-error";
+import { difference } from "../utils/object-utils";
 
 const fs = require("fs");
-const { NodeVM } = require("vm2");
 const path = require("path");
+const vm = require("vm");
 
 export class SmartAppService {
-  private smartApps: Map<string, SmartApp> = new Map<string, SmartApp>();
-  private installedSmartApps: Map<string, InstalledSmartApp> = new Map<
-    string,
-    InstalledSmartApp
-  >();
+  private _smartAppDataStore: SmartAppDataStore;
 
-  public constructor() {
-    this.processSmartApps();
-    this.processInstalledSmartApps();
-  }
-  getInstalledSmartApps(): InstalledSmartApp[] {
-    throw new Error("Method not implemented.");
-  }
-  getSmartApps(): SmartApp[] {
-    throw new Error("Method not implemented.");
+  public constructor(smartAppDataStore: SmartAppDataStore) {
+    this._smartAppDataStore = smartAppDataStore;
   }
 
-  getInstalledSmartApp(id: string) {
-    return this.installedSmartApps.get(id);
+  public initialize(): void {
+    this.reprocessSmartApps();
+    //TODO: handle extensions
+    // if (extensionService != null) {
+    //     extensionService.registerStateListener(this);
+    // }
   }
 
-  getSmartApp(id: string) {
-    return this.smartApps.get(id);
+  public shutdown(): void {
+    console.log("shutting down device service");
+    //TODO: handle extensions
+    // if (extensionService != null) {
+    //     extensionService.unregisterStateListener(this);
+    // }
   }
 
-  private processSmartApps() {
-    try {
-      // list smart apps in directories
-      const saDirFiles: string[] = fs.readdirSync("smartApps/");
-      saDirFiles.forEach((saDirFile) => {
-        if (saDirFile.endsWith(".js")) {
-          let fileName = `smartApps/${saDirFile}`;
-          const data = fs.readFileSync(fileName);
-          const testCodeMetadata =
-            data.toString() +
-            "\nmodule.exports = { definition, preferences, smartAppId }";
-          const mdVm = new NodeVM({
-            sandbox: {
-              settings: {},
-            },
-          });
-          const userCodeMetaData = mdVm.run(testCodeMetadata, {
-            filename: fileName,
-          });
+  public getSmartApps(): SmartApp[] {
+    return this._smartAppDataStore.getSmartApps();
+  }
 
-          let smartApp = new SmartApp();
-          if (userCodeMetaData.smartAppId != null) {
-            smartApp.id = userCodeMetaData.smartAppId;
-          } else {
-            smartApp.id = crypto.randomUUID();
-          }
-          smartApp.name = userCodeMetaData.definition.name;
-          smartApp.namespace = userCodeMetaData.definition.namespace;
-          smartApp.author = userCodeMetaData.definition.author;
-          smartApp.description = userCodeMetaData.definition.description;
-          //TODO: get rest of values
-          smartApp.file = fileName;
-          this.smartApps.set(smartApp.id, smartApp);
-        }
-      });
-    } catch (err) {
-      console.log(err);
+  public getInstalledSmartApps(): InstalledSmartApp[] {
+    return this._smartAppDataStore.getInstalledSmartApps();
+  }
+
+  public getInstalledSmartApp(id: string): InstalledSmartApp {
+    return this._smartAppDataStore.getInstalledSmartApp(id);
+  }
+
+  public getInstalledSmartAppsBySmartApp(
+    smartAppId: string
+  ): InstalledSmartApp[] {
+    return this._smartAppDataStore.getInstalledSmartAppsBySmartApp(smartAppId);
+  }
+
+  public getSmartApp(id: string): SmartApp {
+    return this._smartAppDataStore.getSmartApp(id);
+  }
+
+  public deleteInstalledSmartApp(installedSmartAppId: string): boolean {
+    return this._smartAppDataStore.deleteInstalledSmartApp(installedSmartAppId);
+  }
+
+  public updateInstalledSmartAppState(
+    id: string,
+    originalState: any,
+    updatedState: any
+  ) {
+    let changes = difference(updatedState, originalState);
+    let installedSmartApp: InstalledSmartApp = this.getInstalledSmartApp(id);
+    let existingState = installedSmartApp.state;
+    if (existingState) {
+      changes.removed.forEach((key) => delete existingState[key]);
+      Object.keys(changes.updated).forEach(
+        (key) => (existingState[key] = changes.updated[key])
+      );
+      Object.keys(changes.added).forEach(
+        (key) => (existingState[key] = changes.added[key])
+      );
+      this._smartAppDataStore.updateInstalledSmartAppState(id, existingState);
+    } else {
+      this._smartAppDataStore.updateInstalledSmartAppState(id, updatedState);
     }
   }
 
-  // load installed smart apps from file system
-  private processInstalledSmartApps() {
-    try {
-      const isaDirFiles: string[] = fs.readdirSync("userData/installedSmartApps/");
-      isaDirFiles.forEach((isaDirFile) => {
-        if (isaDirFile.endsWith(".yaml")) {
-          const data = fs.readFileSync(
-            `userData/installedSmartApps/${isaDirFile}`,
-            "utf-8"
-          );
-          let parsedFile = YAML.parse(data);
-          let installedSmartApp = new InstalledSmartApp();
-          installedSmartApp.id = parsedFile.id;
-          installedSmartApp.label = parsedFile.label;
-          installedSmartApp.smartAppId = parsedFile.smartAppId;
-          installedSmartApp.installed = parsedFile.installed;
-          installedSmartApp.state = parsedFile.state;
-          installedSmartApp.parentInstalledSmartAppId =
-            parsedFile.parentInstalledSmartAppId;
-          this.installedSmartApps.set(installedSmartApp.id, installedSmartApp);
-          if (parsedFile.settings) {
-            installedSmartApp.settings = [];
-            parsedFile.settings.forEach((element: any) => {
-              let setting: InstalledSmartAppSetting =
-                new InstalledSmartAppSetting();
-              setting.id = element.id;
-              setting.name = element.name;
-              setting.value = element.value;
-              setting.type = element.type;
-              setting.multiple = element.multiple;
-              installedSmartApp.settings.push(setting);
-            });
-          }
+  public updateSmartApp(smartApp: SmartApp): void {
+    this._smartAppDataStore.updateSmartApp(smartApp);
+  }
+
+  public getSmartAppSourceCode(id: string): string {
+    return this._smartAppDataStore.getSmartAppSourceCode(id);
+  }
+
+  public removeSmartApp(id: string): boolean {
+    let smartAppsInUse: InstalledSmartApp[] =
+      this.getInstalledSmartAppsBySmartApp(id);
+    if (smartAppsInUse?.length > 0) {
+      throw new SmartAppInUseError("Smart App in use", smartAppsInUse);
+    } else {
+      return this._smartAppDataStore.deleteSmartApp(id);
+    }
+  }
+
+  public addSmartAppSourceCode(sourceCode: string): string {
+    let smartApp = this.processSmartAppSource(
+      "newSmartApp",
+      sourceCode,
+      SmartAppType.USER
+    );
+    if (smartApp == null) {
+      throw new Error("No definition found.");
+    }
+    let saId: string = this._smartAppDataStore.createSmartAppSourceCode(
+      sourceCode,
+      smartApp
+    );
+    return saId;
+  }
+
+  public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
+    let existingSmartApp: SmartApp = this.getSmartApp(id);
+    if (existingSmartApp) {
+      // compile source code so that any compile errors get thrown and we get any new definition changes
+      let updatedSmartApp: SmartApp = this.processSmartAppSource(
+        existingSmartApp.file,
+        sourceCode,
+        existingSmartApp.type
+      );
+      this.updateSmartAppIfChanged(existingSmartApp, updatedSmartApp);
+      return this._smartAppDataStore.updateSmartAppSourceCode(id, sourceCode);
+    }
+    throw new Error("Smart App not found.");
+  }
+
+  private updateSmartAppIfChanged(
+    oldSmartApp: SmartApp,
+    newSmartApp: SmartApp
+  ): void {
+    // if any changes are made to the new app excluding client id and client secret, then update.
+    // or if there are changes to the client id and client secret and the new app does not have it set to null
+    // this is so that it will not clear out client id and client secret that have been set by the user at runtime instead of
+    // being defined in the smart app definition.
+    if (
+      !newSmartApp.equalsIgnoreId(oldSmartApp, false) ||
+      (!newSmartApp.equalsIgnoreId(oldSmartApp, true) &&
+        newSmartApp.oAuthClientId != null &&
+        newSmartApp.oAuthClientSecret != null)
+    ) {
+      console.log("Changes for file " + newSmartApp.file);
+      newSmartApp.id = oldSmartApp.id;
+      newSmartApp.oAuthTokens = oldSmartApp.oAuthTokens;
+      this._smartAppDataStore.updateSmartApp(newSmartApp);
+    } else {
+      // only difference is the id,, so no changes
+      console.log("No changes for file " + newSmartApp.file);
+    }
+  }
+
+  public reprocessSmartApps(): void {
+    //TODO: run this process in the background, allows quicker start up of system at the
+    // expense of system starting up with possibly old smart app definition, however
+    // this should be quickly rectified once system is fully running
+
+    let smartApps: SmartApp[] = this._smartAppDataStore.getSmartApps();
+    let newSmartAppInfoMap: Map<string, SmartApp> = this.processSmartAppInfo();
+
+    if (smartApps != null && newSmartAppInfoMap != null) {
+      // check each device handler info against what is in the config file.
+      this.compareNewAndExistingSmartApps(
+        smartApps,
+        Array.from(newSmartAppInfoMap.values())
+      );
+    }
+  }
+
+  private compareNewAndExistingSmartApps(
+    existingSmartApps: SmartApp[],
+    newSmartApps: SmartApp[]
+  ): void {
+    // check each smart app info against what is in the config file.
+    for (let newSmartApp of newSmartApps) {
+      let fileName: string = newSmartApp.file;
+
+      let existingSmartApp = existingSmartApps?.filter(
+        (esa) => esa.file === fileName
+      );
+
+      if (existingSmartApp) {
+        if (existingSmartApp.length > 1) {
+          console.log("Found more than one matching Smart App!");
+        } else if (
+          !newSmartApp.equalsIgnoreId(existingSmartApp[0], false) ||
+          (!newSmartApp.equalsIgnoreId(existingSmartApp[0], true) &&
+            newSmartApp.oAuthClientId != null &&
+            newSmartApp.oAuthClientSecret != null)
+        ) {
+          console.log("Changes for file " + newSmartApp.file);
+          newSmartApp.id = existingSmartApp[0].id;
+          newSmartApp.oAuthTokens = existingSmartApp[0].oAuthTokens;
+
+          this._smartAppDataStore.updateSmartApp(newSmartApp);
+        } else {
+          // only difference is the id,, so no changes
+          console.log("No changes for file " + newSmartApp.file);
         }
-      });
-    } catch (err) {
-      console.log(err);
+      } else {
+        // we have a new smart app.
+        this._smartAppDataStore.createSmartApp(newSmartApp);
+      }
     }
   }
 
   private saveInstalledSmartApps() {
-
     this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
       fs.writeFile(
-        `userData/installedSmartApps/${isa.id}.yaml`,
+        `userData/config/installedSmartApps/${isa.id}.yaml`,
         YAML.stringify(isa),
         (err: any) => {
           if (err) throw err;
@@ -126,5 +222,112 @@ export class SmartAppService {
         }
       );
     });
+  }
+
+  private processSmartAppInfo(): Map<string, SmartApp> {
+    // we need to process smart apps
+    let smartAppInfo: Map<string, SmartApp> = new Map<string, SmartApp>();
+
+    // load built in smart apps
+    const saDirFiles: string[] = fs.readdirSync("smartApps/");
+    saDirFiles.forEach((saDirFile) => {
+      if (saDirFile.endsWith(".js")) {
+        let fileName = `smartApps/${saDirFile}`;
+        try {
+          const sourceCode = fs.readFileSync(fileName)?.toString();
+          let smartApp = this.processSmartAppSource(
+            fileName,
+            sourceCode,
+            SmartAppType.SYSTEM
+          );
+          smartAppInfo.set(smartApp.id, smartApp);
+        } catch (err) {
+          console.log("error processing system smart app files", err);
+        }
+      }
+    });
+
+    // load smart apps from data store
+    let saSources: Map<string, string> =
+      this._smartAppDataStore.getSmartAppSources();
+    saSources?.forEach((sourceCode: string, fileName: string) => {
+      let smartApp = this.processSmartAppSource(
+        fileName,
+        sourceCode,
+        SmartAppType.USER
+      );
+      smartAppInfo.set(smartApp.id, smartApp);
+    });
+
+    // TODO: load smart app sources from extensions
+
+    return smartAppInfo;
+  }
+
+  private processSmartAppSource(
+    fileName: string,
+    sourceCode: string,
+    type: SmartAppType = SmartAppType.USER
+  ): SmartApp {
+    let smartAppMetadataDelegate: SmartAppMetadataDelegate =
+      new SmartAppMetadataDelegate();
+    let sandbox = this.buildMetadataContext(smartAppMetadataDelegate);
+
+    try {
+      vm.createContext(sandbox);
+      vm.runInContext(sourceCode, sandbox, { filename: fileName });
+    } catch (err) {
+      if (err.stack.includes("SyntaxError:")) {
+        // problem with the code
+
+        let errStack = err.stack.substring(
+          0,
+          err.stack.indexOf("at SmartAppService.processSmartAppSource")
+        );
+        //TODO: better way to handle this?
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        err.message = errStack.trim();
+      }
+      throw err;
+    }
+
+    let smartApp = new SmartApp();
+    if (smartAppMetadataDelegate.metadataValue?.definition) {
+      let definition = smartAppMetadataDelegate.metadataValue.definition;
+      if (definition.smartAppId) {
+        smartApp.id = definition.smartAppId;
+      } else {
+        smartApp.id = crypto.randomUUID();
+      }
+
+      smartApp.name = definition.name;
+      smartApp.namespace = definition.namespace;
+      smartApp.author = definition.author;
+      smartApp.description = definition.description;
+      smartApp.category = definition.category;
+      smartApp.iconUrl = definition.iconUrl;
+      smartApp.iconX2Url = definition.iconX2Url;
+      smartApp.type = type;
+      smartApp.file = fileName;
+      return smartApp;
+    } else {
+      throw new Error(`No smart app definition found for file ${fileName}`);
+    }
+  }
+
+  private buildMetadataContext(
+    deviceMetadataDelegate: SmartAppMetadataDelegate
+  ): any {
+    let sandbox: any = {};
+    sandbox["log"] = Logger;
+    deviceMetadataDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
+      sandbox[sandboxMethod] = (deviceMetadataDelegate as any)[
+        sandboxMethod
+      ].bind(deviceMetadataDelegate);
+    });
+
+    return sandbox;
   }
 }

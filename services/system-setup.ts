@@ -11,11 +11,11 @@ function createDirectories() {
   if (!fs.existsSync("userData/config/")) {
     fs.mkdirSync("userData/config/");
   }
-  if (!fs.existsSync("userData/devices/")) {
-    fs.mkdirSync("userData/devices/");
+  if (!fs.existsSync("userData/config/devices/")) {
+    fs.mkdirSync("userData/config/devices/");
   }
-  if (!fs.existsSync("userData/installedSmartApps/")) {
-    fs.mkdirSync("userData/installedSmartApps/");
+  if (!fs.existsSync("userData/config/installedSmartApps/")) {
+    fs.mkdirSync("userData/config/installedSmartApps/");
   }
   if (!fs.existsSync("userData/deviceHandlers/")) {
     fs.mkdirSync("userData/deviceHandlers/");
@@ -28,6 +28,8 @@ function createDirectories() {
 export function setupSystem() {
   createDirectories();
   ServiceFactory.getInstance().getDeviceService().initialize();
+
+  ServiceFactory.getInstance().getSmartAppService().initialize();
 
   // create logger
   //TODO: create logger module

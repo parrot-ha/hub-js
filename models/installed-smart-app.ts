@@ -6,6 +6,29 @@ export class InstalledSmartApp {
   smartAppId: string | undefined;
   installed: boolean = false;
   settings: InstalledSmartAppSetting[] | undefined;
-  state: Map<string, any> | undefined;
+  state: any;
   parentInstalledSmartAppId: string | undefined;
+
+  // transient
+  name: string;
+  namespace: string;
+
+  public get displayName(): string {
+    if (!this.label) {
+      return this.name;
+    }
+    return this.label;
+  }
+
+  public toJSON() {
+    return {
+      id: this.id,
+      label: this.label,
+      smartAppId: this.smartAppId,
+      installed: this.installed,
+      settings: this.settings,
+      state: this.state,
+      parentInstalledSmartAppId: this.parentInstalledSmartAppId,
+    };
+  }
 }

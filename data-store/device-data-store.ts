@@ -2,25 +2,19 @@ import { DeviceHandler } from "../models/device-handler";
 import { Device } from "../models/device";
 
 export interface DeviceDataStore {
-  getDeviceHandlers(): DeviceHandler[];
-
   getDevices(): Device[];
 
   getDevice(id: string): Device;
 
-  getDeviceHandler(id: string): DeviceHandler;
-
   updateDevice(device: Device): void;
 
-  createDevice(
-    integrationId: string,
-    deviceHandlerId: string,
-    deviceNetworkId: string,
-    deviceName: string,
-    deviceLabel: string,
-    deviceData: any,
-    additionalIntegrationParameters: any
-  ): string;
+  deleteDevice(id: string): boolean;
+
+  createDevice(device: Device): string;
+
+  getDeviceHandlers(): DeviceHandler[];
+
+  getDeviceHandler(id: string): DeviceHandler;
 
   updateDeviceHandler(deviceHandler: DeviceHandler): void;
 

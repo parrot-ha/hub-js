@@ -17,10 +17,12 @@ function parse(description) {
 }
 
 function on() {
+  log.debug("turning on")
   sendEvent({ name: "switch", value: "on" });
 }
 
 function off() {
+  log.debug("turning off")
   sendEvent({ name: "switch", value: "off" });
 }
 

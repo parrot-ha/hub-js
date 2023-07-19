@@ -24,7 +24,7 @@ export class Event {
         this.name = properties.name;
       }
       if (properties.value) {
-        this.name = properties.value.toString();
+        this.value = properties.value.toString();
       }
       // TODO: check if state change
       this._isStateChange = true;
@@ -35,5 +35,10 @@ export class Event {
 
   isStateChange(): boolean {
     return this._isStateChange;
+  }
+
+  public toString() {
+    //TODO: build rest of event
+    return "Event(name: " + this.name + " value: " + this.value + ")";
   }
 }

@@ -6,30 +6,34 @@ import { SmartAppDelegate } from "../delegates/smart-app-delegate";
 import { DeviceService } from "./device-service";
 import { SmartAppService } from "./smart-app-service";
 import { Event } from "../models/event";
-import { SmartApp } from "../models/smart-app";
+import { SmartApp, SmartAppType } from "../models/smart-app";
 import { Device } from "../models/device";
 import { DeviceHandler } from "../models/device-handler";
 import { InstalledSmartApp } from "../models/installed-smart-app";
 import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting";
 import { DeviceWrapper } from "../models/device-wrapper";
+import { DeviceSetting } from "../models/device-setting";
+import { LocationService } from "./location-service";
 
-const { NodeVM } = require("vm2");
 const fs = require("fs");
-const path = require("path");
+const vm = require("vm");
 
 export class EntityService {
   private deviceService: DeviceService;
   private smartAppService: SmartAppService;
   private eventService: EventService;
+  private _locationService: LocationService;
 
   constructor(
     deviceService: DeviceService,
     smartAppService: SmartAppService,
-    eventService: EventService
+    eventService: EventService,
+    locationService: LocationService
   ) {
     this.deviceService = deviceService;
     this.eventService = eventService;
     this.smartAppService = smartAppService;
+    this._locationService = locationService;
   }
 
   sendDeviceEvent(properties: any, deviceId: string): void {
@@ -45,7 +49,7 @@ export class EntityService {
   }
 
   private processEvent(event: Event): void {
-    console.log("process event!");
+    console.log("process event!", event);
     // skip any events that have a null name
     if (event.name == null) {
       return;
@@ -70,7 +74,6 @@ export class EntityService {
 
     subscriptions.forEach((subscription: Subscription) => {
       //TODO: create a worker pool for these
-      //TODO: create a copy of the event so that this is thread safe.
       this.runSmartAppMethod(
         subscription.subscribedAppId,
         subscription.handlerMethod,
@@ -85,6 +88,24 @@ export class EntityService {
     );
   }
 
+  public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
+    if (this.smartAppService.updateSmartAppSourceCode(id, sourceCode)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearSmartAppScript(id);
+      return true;
+    }
+    return false;
+  }
+
+  public removeSmartApp(id: string): boolean {
+    if (this.smartAppService.removeSmartApp(id)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearSmartAppScript(id);
+      return true;
+    }
+    return false;
+  }
+
   public async runSmartAppMethod(
     id: string,
     methodName: string,
@@ -97,14 +118,38 @@ export class EntityService {
         let smartApp: SmartApp = this.smartAppService.getSmartApp(
           installedSmartApp.smartAppId
         );
+        let retVal;
+        let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
+        let context = this.buildSmartAppSandbox(installedSmartApp);
 
-        let retVal = this.runEntityMethod(
-          smartApp.file,
-          methodName,
-          `smartApp_${smartApp.id}`,
-          this.buildSmartAppSandbox(installedSmartApp),
-          args
-        );
+        console.log("stateCopy", JSON.stringify(stateCopy));
+
+        const data = fs.readFileSync(smartApp.file);
+
+        //TODO: can this context be saved and reused?
+        vm.createContext(context);
+        vm.runInContext(data.toString(), context, {
+          filename: `smartApp_${smartApp.id}.js`,
+        });
+        if (typeof context[methodName] === "function") {
+          let myFunction: Function = context[methodName];
+          try {
+            if (Array.isArray(args)) {
+              retVal = myFunction.call(null, ...args);
+            } else {
+              retVal = myFunction.call(null, args);
+            }
+            //update state
+            this.smartAppService.updateInstalledSmartAppState(
+              installedSmartApp.id,
+              stateCopy,
+              context.state
+            );
+          } catch (err) {
+            console.log(err);
+          }
+        }
+
         resolve(retVal);
       } catch (error) {
         reject(error);
@@ -115,19 +160,22 @@ export class EntityService {
   private buildSmartAppSandbox(installedSmartApp: InstalledSmartApp): any {
     let sandbox: any = {};
     sandbox["log"] = Logger;
+    sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
-      this.eventService
+      this.eventService,
+      this._locationService
     );
-    sandbox["subscribe"] = smartAppDelegate.subscribe.bind(smartAppDelegate);
-    sandbox["unsubscribe"] =
-      smartAppDelegate.unsubscribe.bind(smartAppDelegate);
-    sandbox["unschedule"] = smartAppDelegate.unschedule.bind(smartAppDelegate);
-    let settingsObject: any = {};
 
+    smartAppDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
+      sandbox[sandboxMethod] = (smartAppDelegate as any)[sandboxMethod].bind(
+        smartAppDelegate
+      );
+    });
+
+    let settingsObject: any = {};
     let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
     const settingsProxy = new Proxy(settingsObject, settingsHandler);
-
     sandbox["settings"] = settingsProxy;
 
     return sandbox;
@@ -154,14 +202,17 @@ export class EntityService {
                   JSON.parse(installedSmartAppSetting.value).forEach(
                     (deviceId: string) => {
                       settingLookupVal.push(
-                        this.shEntityService.buildDeviceWrapper(deviceId)
+                        this.shEntityService.buildDeviceWrapper(
+                          this.shDeviceService.getDevice(deviceId)
+                        )
                       );
                     }
                   );
                 } else {
                   let deviceId = installedSmartAppSetting.value;
-                  settingLookupVal =
-                    this.shEntityService.buildDeviceWrapper(deviceId);
+                  settingLookupVal = this.shEntityService.buildDeviceWrapper(
+                    this.shDeviceService.getDevice(deviceId)
+                  );
                 }
               } else {
                 settingLookupVal = null;
@@ -178,52 +229,28 @@ export class EntityService {
     };
   }
 
-  protected buildDeviceWrapper(deviceId: string) {
-    let device = this.deviceService.getDevice(deviceId);
-    let deviceWrapper = new DeviceWrapper(device);
+  protected buildDeviceWrapper(device: Device) {
+    let deviceWrapper = new DeviceWrapper(device, this.deviceService);
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
+        //TODO: is there a better way to handle this?
+        if (dwProp === "_device" || dwProp === "_deviceService") {
+         return dwTarget[dwProp];
+        }
         const origMethod = dwTarget[dwProp];
         if (origMethod) {
           return origMethod;
         } else {
           // probably a call to a command
           //TODO: check if command from device handler
-          return this.shEntityService.getDeviceMethod(dwTarget.id, dwProp);
+          return function (...args: any[]) {
+            this.shEntityService.runDeviceMethod(dwTarget.id, dwProp, args);
+          }.bind(this);
         }
       },
     };
     return new Proxy(deviceWrapper, deviceWrapperHandler);
-  }
-
-  public getDeviceMethod(id: string, methodName: string) {
-    let device: Device = this.deviceService.getDevice(id);
-    let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
-      device.deviceHandlerId
-    );
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
-    let sandbox: any = {};
-    sandbox["log"] = Logger;
-    sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
-
-    const data = fs.readFileSync(deviceHandler.file);
-
-    const vm = new NodeVM({
-      require: {
-        external: true,
-      },
-      sandbox: sandbox,
-    });
-
-    const userCode = vm.run(
-      data.toString() + `\nmodule.exports = { ${methodName} }`,
-      {
-        filename: `deviceHandler_${deviceHandler.id}.js`,
-      }
-    );
-
-    return userCode[methodName];
   }
 
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
@@ -231,67 +258,88 @@ export class EntityService {
     let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
       device.deviceHandlerId
     );
+    //TODO: check that method name is listed as a command
+    try {
+      this.runEntityMethod(
+        deviceHandler.file,
+        methodName,
+        `deviceHandler_${deviceHandler.id}`,
+        this.buildDeviceSandbox(device),
+        args
+      );
+    } catch (err) {
+      console.log("err with run device method", err);
+    }
+  }
 
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
+  private buildDeviceSandbox(device: Device): any {
     let sandbox: any = {};
     sandbox["log"] = Logger;
+    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
     sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
+    sandbox["httpGet"] = deviceDelegate.httpGet;
     sandbox["metadata"] = () => {};
-    //TODO: check that method name is listed as a command
-    this.runEntityMethod(
-      deviceHandler.file,
-      methodName,
-      `deviceHandler_${deviceHandler.id}`,
-      sandbox,
-      args
-    );
+    sandbox["device"] = this.buildDeviceWrapper(device);
+
+    let settingsObject: any = {};
+    let settingsHandler = this.buildDeviceSettingsHandler(device);
+    const settingsProxy = new Proxy(settingsObject, settingsHandler);
+    sandbox["settings"] = settingsProxy;
+
+    return sandbox;
+  }
+
+  protected buildDeviceSettingsHandler(device: Device) {
+    return {
+      settingsCache: {},
+      devSettings: device.settings || [],
+      get(target: any, prop: any): any {
+        let settingLookupVal = this.settingsCache[prop];
+        if (typeof settingLookupVal === "undefined") {
+          let deviceSetting: DeviceSetting = this.devSettings.find(
+            (element: DeviceSetting) => element.name == prop
+          );
+          if (typeof deviceSetting != "undefined") {
+            settingLookupVal = deviceSetting.getValueAsType();
+            this.settingsCache[prop] = settingLookupVal;
+          }
+        }
+        return settingLookupVal ? settingLookupVal : null;
+      },
+    };
   }
 
   private runEntityMethod(
     file: string,
     methodName: string,
     entityName: string,
-    sandbox: any,
+    context: any,
     args: any[]
   ): any {
-    if (!sandbox) {
-      sandbox = {};
+    if (!context) {
+      context = {};
     }
     const data = fs.readFileSync(file);
 
-    const vm = new NodeVM({
-      // require: {
-      //   external: true,
-      // },
-      sandbox: sandbox,
+    //TODO: can this context be saved and reused?
+    vm.createContext(context);
+    vm.runInContext(data.toString(), context, {
+      filename: `${entityName}.js`,
     });
-
-    const userCode = vm.run(
-      data.toString() + `\nmodule.exports = { ${methodName} }`,
-      {
-        filename: `${entityName}.js`,
-      }
-    );
-
-    const method = userCode[methodName];
-    if (typeof method !== "function") {
-      console.log("NOT A METHOD");
-      return;
-    }
-    if (args != null && args.length > 0) {
-      if (args.length == 1) {
-        method(args[0]);
-      } else if (args.length == 2) {
-        method(args[0], args[1]);
-      } else if (args.length == 3) {
-        method(args[0], args[1], args[2]);
-      } else if (args.length == 4) {
-        method(args[0], args[1], args[2], args[3]);
-      } else if (args.length == 5) {
-        method(args[0], args[1], args[2], args[3], args[4]);
+    if (typeof context[methodName] === "function") {
+      let myFunction: Function = context[methodName];
+      try {
+        if (Array.isArray(args)) {
+          myFunction.call(null, ...args);
+        } else {
+          myFunction.call(null, args);
+        }
+      } catch (err) {
+        console.log(err);
       }
     } else {
-      method();
+      //TODO: do something about missing methods
+      console.log(`method ${methodName} missing on entity ${entityName}`);
     }
   }
 }
