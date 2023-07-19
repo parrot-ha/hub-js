@@ -45,9 +45,9 @@ export class InstalledSmartAppSetting {
         }
         return this.value;
       }
+    } else {
+      return null;
     }
     //TODO; handle hub, icon, phone
-
-    return null;
   }
 }

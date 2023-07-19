@@ -6,6 +6,10 @@ import { Logger } from "./logger-service";
 import { DeviceMetadataDelegate } from "../delegates/device-metadata-delegate";
 import { DeviceDataStore } from "../data-store/device-data-store";
 import { DeviceSetting } from "../models/device-setting";
+import { State } from "../models/state";
+import { Attribute } from "../models/attribute";
+import { Capability } from "../models/capability";
+import { Capabilities } from "../models/capabilities";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -33,27 +37,13 @@ export class DeviceService {
     return this._deviceDataStore.getDeviceHandler(id);
   }
 
-  public addDevice(
-    integrationId: string,
-    deviceHandlerId: string,
-    deviceNetworkId: string,
-    deviceName: string,
-    deviceLabel: string,
-    deviceData: any,
-    additionalIntegrationParameters: any
-  ) {
-    if (deviceName == null) {
-      deviceName = this._deviceDataStore.getDeviceHandler(deviceHandlerId).name;
+  public addDevice(device: Device) {
+    if (device.name == null) {
+      device.name = this._deviceDataStore.getDeviceHandler(
+        device.deviceHandlerId
+      ).name;
     }
-    return this._deviceDataStore.createDevice(
-      integrationId,
-      deviceHandlerId,
-      deviceNetworkId,
-      deviceName,
-      deviceLabel,
-      deviceData,
-      additionalIntegrationParameters
-    );
+    return this._deviceDataStore.createDevice(device);
   }
 
   public updateDevice(id: string, deviceMap: any, settingsMap: any): boolean {
@@ -231,7 +221,12 @@ export class DeviceService {
   }
 
   updateDeviceState(event: Event): void {
-    //TODO: store update device state
+    let d: Device = this._deviceDataStore.getDevice(event.sourceId);
+    let s: State = new State(event.name, event.value, event.unit);
+    d.setCurrentState(s);
+    //TODO: store state history in database
+    //TODO: use write behind cache for saving device
+    this._deviceDataStore.updateDevice(d);
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
@@ -247,6 +242,46 @@ export class DeviceService {
         filename: deviceHandler.file,
       });
       return deviceMetadataDelegate.metadataValue?.preferences;
+    } else {
+      return null;
+    }
+  }
+
+  public getAttributeForDeviceHandler(
+    deviceHandlerId: string,
+    attributeName: string
+  ): Attribute {
+    let deviceHandler: DeviceHandler = this.getDeviceHandler(deviceHandlerId);
+    if (deviceHandler == null) {
+      return null;
+    }
+
+    let foundAttribute: Attribute;
+
+    attributeName = attributeName.toLowerCase();
+    if (deviceHandler.attributeList != null) {
+      foundAttribute = deviceHandler.attributeList.find(
+        (attrib) => attrib.name.toLowerCase() === attributeName
+      );
+    }
+    if (foundAttribute) {
+      return foundAttribute;
+    }
+
+    if (deviceHandler.capabilityList != null) {
+      deviceHandler.capabilityList.forEach((capabilityName: string) => {
+        let capability: Capability = Capabilities.getCapability(capabilityName);
+        if (capability != null) {
+          if (capability.attributes != null) {
+            foundAttribute = capability.attributes.find(
+              (attrib) => attrib.name.toLowerCase() === attributeName
+            );
+          }
+        }
+      });
+    }
+    if (foundAttribute) {
+      return foundAttribute;
     } else {
       return null;
     }

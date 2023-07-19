@@ -7,6 +7,7 @@ import { SmartAppMetadataDelegate } from "../delegates/smart-app-metadata-delega
 import { Logger } from "./logger-service";
 import { SmartAppDataStore } from "../data-store/smart-app-data-store";
 import { SmartAppInUseError } from "../errors/smart-app-in-use-error";
+import { difference } from "../utils/object-utils";
 
 const fs = require("fs");
 const path = require("path");
@@ -59,6 +60,28 @@ export class SmartAppService {
 
   public deleteInstalledSmartApp(installedSmartAppId: string): boolean {
     return this._smartAppDataStore.deleteInstalledSmartApp(installedSmartAppId);
+  }
+
+  public updateInstalledSmartAppState(
+    id: string,
+    originalState: any,
+    updatedState: any
+  ) {
+    let changes = difference(updatedState, originalState);
+    let installedSmartApp: InstalledSmartApp = this.getInstalledSmartApp(id);
+    let existingState = installedSmartApp.state;
+    if (existingState) {
+      changes.removed.forEach((key) => delete existingState[key]);
+      Object.keys(changes.updated).forEach(
+        (key) => (existingState[key] = changes.updated[key])
+      );
+      Object.keys(changes.added).forEach(
+        (key) => (existingState[key] = changes.added[key])
+      );
+      this._smartAppDataStore.updateInstalledSmartAppState(id, existingState);
+    } else {
+      this._smartAppDataStore.updateInstalledSmartAppState(id, updatedState);
+    }
   }
 
   public updateSmartApp(smartApp: SmartApp): void {
@@ -191,7 +214,7 @@ export class SmartAppService {
   private saveInstalledSmartApps() {
     this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
       fs.writeFile(
-        `userData/installedSmartApps/${isa.id}.yaml`,
+        `userData/config/installedSmartApps/${isa.id}.yaml`,
         YAML.stringify(isa),
         (err: any) => {
           if (err) throw err;
@@ -256,16 +279,16 @@ export class SmartAppService {
     } catch (err) {
       if (err.stack.includes("SyntaxError:")) {
         // problem with the code
-        
+
         let errStack = err.stack.substring(
           0,
           err.stack.indexOf("at SmartAppService.processSmartAppSource")
         );
-        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
-        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
-        errStack = errStack.substring(0, errStack.lastIndexOf("at "))
+        //TODO: better way to handle this?
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
         err.message = errStack.trim();
-
       }
       throw err;
     }

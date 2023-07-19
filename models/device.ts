@@ -1,5 +1,6 @@
 import { DeviceSetting } from "./device-setting";
 import { Integration } from "./integration";
+import { State } from "./state";
 
 export class Device {
   id: string | undefined;
@@ -12,7 +13,7 @@ export class Device {
   private _integration: Integration;
   state: any | undefined;
   data: any | undefined;
-  //currentStates: Map<string, State> | undefined;
+  private _currentStates: Map<string, State>;
   settings: DeviceSetting[] | undefined;
   created: Date | undefined;
   updated: Date | undefined;
@@ -67,6 +68,28 @@ export class Device {
     this._integration = integration;
   }
 
+  public get currentStates(): Map<string, State> {
+    return this._currentStates;
+  }
+
+  public set currentStates(currentStates: Map<string, State>) {
+    this._currentStates = currentStates;
+  }
+
+  public getCurrentState(attributeName: string): State {
+    if (!this._currentStates) {
+      return null;
+    }
+    return this._currentStates.get(attributeName);
+  }
+
+  public setCurrentState(state: State): void {
+    if (!this._currentStates) {
+      this._currentStates = new Map<string, State>();
+    }
+    this._currentStates.set(state.name, state);
+  }
+
   public toJSON() {
     return {
       id: this.id,
@@ -79,10 +102,31 @@ export class Device {
       integration: this.integration,
       state: this.state,
       data: this.data,
-      //currentStates: this.currentStates
+      currentStates: this._currentStates,
       settings: this.settings,
       created: this.created,
       updated: this.updated,
     };
+  }
+
+  public static fromJSON(json: any) {
+    let d: Device = new Device();
+    if (json != null && typeof json === "object") {
+      d.id = json.id;
+      d.deviceHandlerId = json.deviceHandlerId;
+      d.name = json.name;
+      d.label = json.label;
+      d.deviceNetworkId = json.deviceNetworkId;
+      d.parentDeviceId = json.parentDeviceId;
+      d.parentSmartApp = json.parentSmartApp;
+      d.integration = json.integration;
+      d.state = json.state;
+      d.data = json.data;
+      d.currentStates = new Map(Object.entries(json.currentStates));
+      d.settings = json.settings;
+      d.created = json.created;
+      d.updated = json.updated;
+    }
+    return d;
   }
 }

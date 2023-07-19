@@ -7,6 +7,7 @@ import { Command } from "../../models/command";
 import { Capability } from "../../models/capability";
 import { Capabilities } from "../../models/capabilities";
 import { DeviceSetting } from "../../models/device-setting";
+import { State } from "../../models/state";
 
 const express = require("express");
 
@@ -17,22 +18,18 @@ module.exports = function (
   const router = express.Router();
   router.get("/", (req: Request, res: Response) => {
     let devices: Device[] = deviceService.getDevices();
-    let deviceListData: Map<string, string>[] = [];
+    let deviceListData: any[] = [];
 
     if (devices) {
       devices.forEach((device) => {
-        let devData: any = {};
-        devData.id = device.id;
-        devData.name = device.name;
-        devData.label = device.label;
-        devData.displayName = device.displayName;
-        devData.deviceNetworkId = device.deviceNetworkId;
-        let dh: DeviceHandler = deviceService.getDeviceHandler(
-          device.deviceHandlerId
-        );
-        if (dh != null) {
-          devData.type = dh.name;
-        }
+        let devData: any = {
+          id: device.id,
+          name: device.name,
+          label: device.label,
+          displayName: device.displayName,
+          deviceNetworkId: device.deviceNetworkId,
+          type: deviceService.getDeviceHandler(device.deviceHandlerId)?.name,
+        };
 
         deviceListData.push(devData);
       });
@@ -45,15 +42,15 @@ module.exports = function (
   router.post("/", (req: Request, res: Response) => {
     let deviceParams = req.body;
     console.log("deviceParams", deviceParams);
-    let deviceId = deviceService.addDevice(
-      deviceParams.integrationId,
-      deviceParams.device.deviceHandlerId,
-      deviceParams.device.deviceNetworkId,
-      deviceParams.device.name,
-      deviceParams.device.label,
-      null,
-      null
-    );
+
+    let d: Device = new Device();
+    //handle integration
+    d.integration.id = deviceParams.integrationId;
+    d.deviceNetworkId = deviceParams.device.deviceNetworkId;
+    d.name = deviceParams.device.name;
+    d.label = deviceParams.device.label;
+    d.deviceHandlerId = deviceParams.device.deviceHandlerId;
+    let deviceId = deviceService.addDevice(d);
 
     if (deviceParams.settings) {
       let device: Device = deviceService.getDevice(deviceId);
@@ -190,14 +187,13 @@ module.exports = function (
     let id: string = req.params.id;
     let device: Device = deviceService.getDevice(id);
 
-    let currentStates: any[];
-    //TODO: get current states from device
-    //Collection<State> currentStates;
-    // if (device.getCurrentStates() != null) {
-    //     currentStates = device.getCurrentStates().values();
-    // } else {
-    currentStates = [];
-    // }
+    let currentStates: State[];
+    // get current states from device
+    if (device.currentStates != null) {
+      currentStates = Array.from(device.currentStates.values());
+    } else {
+      currentStates = [];
+    }
 
     res.json(currentStates);
   });

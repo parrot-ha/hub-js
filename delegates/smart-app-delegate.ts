@@ -14,13 +14,13 @@ export class SmartAppDelegate {
     "unsubscribe",
     "unschedule",
     "definition",
+    "runIn",
   ];
 
   constructor(
     installedSmartApp: InstalledSmartApp,
     eventService: EventService,
     locationService: LocationService
-
   ) {
     this._installedSmartApp = installedSmartApp;
     this._eventService = eventService;
@@ -91,9 +91,15 @@ export class SmartAppDelegate {
     console.log("unschedule");
   }
 
-  
+  public runIn(
+    delayInSeconds: number,
+    handlerMethod: string,
+    options: Map<string, any> = new Map<string, any>()
+  ): void {
+    console.log("Implement runIn!");
+  }
+
   public definition(definitionInfo: any) {
     // this function is empty because we ignore definition in normal running
   }
-
 }

@@ -6,7 +6,7 @@ export class InstalledSmartApp {
   smartAppId: string | undefined;
   installed: boolean = false;
   settings: InstalledSmartAppSetting[] | undefined;
-  state: Map<string, any> | undefined;
+  state: any;
   parentInstalledSmartAppId: string | undefined;
 
   // transient

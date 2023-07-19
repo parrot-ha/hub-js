@@ -5,11 +5,16 @@ import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting"
 
 import YAML from "yaml";
 import fs from "fs";
+import { randomUUID } from "crypto";
 
 const winston = require("winston");
 const logger = winston.loggers.get("parrotLogger");
 
 export class SmartAppFileDataStore implements SmartAppDataStore {
+  private _smartApps: Map<string, SmartApp>;
+  private _installedSmartApps: Map<string, InstalledSmartApp>;
+  private _childInstalledSmartApps: Map<string, string[]>;
+
   getInstalledSmartAppsByExtension(extensionId: string): InstalledSmartApp[] {
     throw new Error("Method not implemented.");
   }
@@ -24,13 +29,68 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   }
 
   createInstalledSmartApp(installedSmartApp: InstalledSmartApp): string {
-    throw new Error("Method not implemented.");
+    let isaId: string = randomUUID();
+    installedSmartApp.id = isaId;
+
+    this.getInstalledSmartAppCache().set(isaId, installedSmartApp);
+
+    // add to child app map if this is a child app
+    if (installedSmartApp.parentInstalledSmartAppId != null) {
+      if (
+        this.getChildInstalledSmartAppCache().get(
+          installedSmartApp.parentInstalledSmartAppId
+        ) == null
+      ) {
+        this.getChildInstalledSmartAppCache().set(
+          installedSmartApp.parentInstalledSmartAppId,
+          [installedSmartApp.id]
+        );
+      } else {
+        this.getChildInstalledSmartAppCache()
+          .get(installedSmartApp.parentInstalledSmartAppId)
+          .push(installedSmartApp.id);
+      }
+    }
+    this.saveInstalledSmartApp(isaId);
+
+    return isaId;
   }
+
+  private getChildInstalledSmartAppCache(): Map<string, string[]> {
+    if (this._childInstalledSmartApps == null) {
+      this.loadInstalledSmartApps();
+    }
+    return this._childInstalledSmartApps;
+  }
+
   getChildInstalledSmartApps(parentId: string): InstalledSmartApp[] {
-    throw new Error("Method not implemented.");
+    let childApps: InstalledSmartApp[] = [];
+    let childAppIds: string[] =
+      this.getChildInstalledSmartAppCache().get(parentId);
+    if (childAppIds == null || childAppIds.length == 0) {
+      return childApps;
+    }
+    childAppIds.forEach((childAppId) =>
+      childApps.push(this.getInstalledSmartApp(childAppId))
+    );
+    return childApps;
   }
+
   deleteInstalledSmartApp(id: string): boolean {
-    throw new Error("Method not implemented.");
+    //delete file in installedSmartApps
+    try {
+      let fileName = `userData/config/installedSmartApps/${id}.yaml`;
+      if (fs.existsSync(fileName)) {
+        fs.unlinkSync(fileName);
+      }
+    } catch (err) {
+      logger.warn("Unable to remove installed smart app config file for " + id);
+      return false;
+    }
+
+    this.getInstalledSmartAppCache().delete(id);
+
+    return true;
   }
 
   getInstalledSmartAppsBySmartApp(smartAppId: string): InstalledSmartApp[] {
@@ -44,19 +104,31 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
 
   updateInstalledSmartAppState(
     installedSmartAppId: string,
-    state: Map<string, any>
+    state: any
   ): boolean {
-    throw new Error("Method not implemented.");
+    let installedSmartApp: InstalledSmartApp =
+      this.getInstalledSmartAppCache().get(installedSmartAppId);
+    if (installedSmartApp != null) {
+      //serialize state to json and back to filter out any bad values
+      //https://docs.smartthings.com/en/latest/smartapp-developers-guide/state.html#persistence-model
+      if (state != null) {
+        installedSmartApp.state = JSON.parse(JSON.stringify(state));
+      }
+      this.saveInstalledSmartApp(installedSmartApp.id);
+    } else {
+      throw new Error("Installed Smart App does not exist");
+    }
+
+    return true;
   }
+
   getInstalledSmartAppsByToken(token: string): string[] {
     throw new Error("Method not implemented.");
   }
+
   getOAuthClientIdByToken(token: string): string {
     throw new Error("Method not implemented.");
   }
-
-  private _smartApps: Map<string, SmartApp>;
-  private _installedSmartApps: Map<string, InstalledSmartApp>;
 
   public getInstalledSmartApp(id: string) {
     return this.getInstalledSmartAppCache().get(id);
@@ -68,26 +140,27 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
 
   private getInstalledSmartAppCache(): Map<string, InstalledSmartApp> {
     if (!this._installedSmartApps) {
-      this._installedSmartApps = this.loadInstalledSmartApps();
+      this.loadInstalledSmartApps();
     }
     return this._installedSmartApps;
   }
 
-  private loadInstalledSmartApps(): Map<string, InstalledSmartApp> {
+  private loadInstalledSmartApps(): void {
     let newInstalledSmartApps: Map<string, InstalledSmartApp> = new Map<
       string,
       InstalledSmartApp
     >();
+    let newChildAppMap: Map<string, string[]> = new Map<string, string[]>();
 
     try {
       const isaDirFiles: string[] = fs.readdirSync(
-        "userData/installedSmartApps/"
+        "userData/config/installedSmartApps/"
       );
       isaDirFiles.forEach((isaDirFile) => {
         try {
           if (isaDirFile.endsWith(".yaml")) {
             const data = fs.readFileSync(
-              `userData/installedSmartApps/${isaDirFile}`,
+              `userData/config/installedSmartApps/${isaDirFile}`,
               "utf-8"
             );
             let parsedFile = YAML.parse(data);
@@ -117,6 +190,22 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
                 installedSmartApp.settings.push(setting);
               });
             }
+            if (installedSmartApp.parentInstalledSmartAppId != null) {
+              if (
+                newChildAppMap.get(
+                  installedSmartApp.parentInstalledSmartAppId
+                ) == null
+              ) {
+                newChildAppMap.set(
+                  installedSmartApp.parentInstalledSmartAppId,
+                  [installedSmartApp.id]
+                );
+              } else {
+                newChildAppMap
+                  .get(installedSmartApp.parentInstalledSmartAppId)
+                  .push(installedSmartApp.id);
+              }
+            }
             newInstalledSmartApps.set(installedSmartApp.id, installedSmartApp);
           }
         } catch (err) {
@@ -126,17 +215,18 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/installedSmartApps/: ${err.message}`
+        `Error loading files from userData/config/installedSmartApps/: ${err.message}`
       );
     }
-    return newInstalledSmartApps;
+    this._installedSmartApps = newInstalledSmartApps;
+    this._childInstalledSmartApps = newChildAppMap;
   }
 
   private saveInstalledSmartApp(isaId: string): boolean {
     let existingIsa: InstalledSmartApp = this.getInstalledSmartApp(isaId);
     try {
       fs.writeFile(
-        `userData/installedSmartApps/${isaId}.yaml`,
+        `userData/config/installedSmartApps/${isaId}.yaml`,
         YAML.stringify(existingIsa.toJSON()),
         (err: any) => {
           if (err) throw err;
@@ -209,15 +299,15 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   deleteSmartApp(id: string): boolean {
     let sa: SmartApp = this.getSmartApp(id);
     if (SmartAppType.USER === sa.type) {
-        //delete source file
-        try {
-          if (fs.existsSync(sa.file)) {
-            fs.unlinkSync(sa.file);
-          }
-        } catch (err) {
-          console.log("Unable to delete smart app " + id);
-          return false;
+      //delete source file
+      try {
+        if (fs.existsSync(sa.file)) {
+          fs.unlinkSync(sa.file);
         }
+      } catch (err) {
+        console.log("Unable to delete smart app " + id);
+        return false;
+      }
     }
 
     this.getSmartAppCache().delete(id);
@@ -252,11 +342,11 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
         // save smart app definition
         this.createSmartApp(smartApp);
       });
-      return smartApp.id
+      return smartApp.id;
     } catch (err) {
       console.log("error when saving smartApp file", err);
+      return null;
     }
-    return null;
   }
 
   private saveSmartApps(): void {

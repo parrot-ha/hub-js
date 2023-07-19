@@ -37,8 +37,8 @@ export class DeviceFileDataStore implements DeviceDataStore {
       existingDevice.name = device.name;
       existingDevice.name = device.name;
 
-      //TODO: handle current states
-      //existingDevice.setCurrentStates(device.getCurrentStates());
+      // handle current states
+      existingDevice.currentStates = device.currentStates;
       existingDevice.label = device.label;
       existingDevice.settings = device.settings;
       existingDevice.state = device.state;
@@ -54,32 +54,12 @@ export class DeviceFileDataStore implements DeviceDataStore {
     }
   }
 
-  public createDevice(
-    integrationId: string,
-    deviceHandlerId: string,
-    deviceNetworkId: string,
-    deviceName: string,
-    deviceLabel: string,
-    deviceData: any,
-    additionalIntegrationParameters: any
-  ): string {
+  public createDevice(device: Device): string {
     let deviceId: string = crypto.randomUUID();
+    device.id = deviceId;
 
-    let d: Device = new Device();
-    //handle integration
-    d.integration.id = integrationId;
-    d.integration.options = additionalIntegrationParameters;
-
-    d.data = deviceData;
-
-    d.deviceNetworkId = deviceNetworkId;
-    d.name = deviceName;
-    d.label = deviceLabel;
-    d.deviceHandlerId = deviceHandlerId;
-    d.id = deviceId;
-
-    this.addDeviceToCache(d);
-    this.saveDeviceToFile(d);
+    this.addDeviceToCache(device);
+    this.saveDeviceToFile(device);
 
     return deviceId;
   }
@@ -89,7 +69,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
     // get device
     let device: Device = this.getDevice(id);
     try {
-      let fileName: string = `userData/devices/${id}.yaml`;
+      let fileName: string = `userData/config/devices/${id}.yaml`;
       if (fs.existsSync(fileName)) {
         fs.unlinkSync(fileName);
       }
@@ -142,21 +122,16 @@ export class DeviceFileDataStore implements DeviceDataStore {
     let newDeviceDNItoIdMap: Map<string, string> = new Map<string, string>();
 
     try {
-      const devDirFiles: string[] = fs.readdirSync("userData/devices/");
+      const devDirFiles: string[] = fs.readdirSync("userData/config/devices/");
       devDirFiles.forEach((devDirFile) => {
         try {
           if (devDirFile.endsWith(".yaml")) {
             const data = fs.readFileSync(
-              `userData/devices/${devDirFile}`,
+              `userData/config/devices/${devDirFile}`,
               "utf-8"
             );
             let parsedFile = YAML.parse(data);
-            let device = new Device();
-            device.id = parsedFile.id;
-            device.name = parsedFile.name;
-            device.label = parsedFile.label;
-            device.deviceNetworkId = parsedFile.deviceNetworkId;
-            device.deviceHandlerId = parsedFile.deviceHandlerId;
+            let device: Device = Device.fromJSON(parsedFile);
             newDevices.set(device.id, device);
             newDeviceDNItoIdMap.set(
               (device.integration?.id || "null") +
@@ -170,7 +145,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
         }
       });
     } catch (err) {
-      logger.warn(`Error loading files from userData/devices/: ${err.message}`);
+      logger.warn(`Error loading files from userData/config/devices/: ${err.message}`);
     }
     this._devices = newDevices;
     this._deviceDNItoIdMap = newDeviceDNItoIdMap;
@@ -178,7 +153,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
   private saveDeviceToFile(device: Device) {
     fs.writeFile(
-      `userData/devices/${device.id}.yaml`,
+      `userData/config/devices/${device.id}.yaml`,
       YAML.stringify(device.toJSON()),
       (err: any) => {
         if (err) throw err;

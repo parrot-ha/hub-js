@@ -32,7 +32,7 @@ export interface SmartAppDataStore {
 
   updateInstalledSmartAppState(
     installedSmartAppId: string,
-    state: Map<string, any>
+    state: any
   ): boolean;
 
   getSmartAppSourceCode(id: string): string;

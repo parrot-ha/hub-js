@@ -118,14 +118,38 @@ export class EntityService {
         let smartApp: SmartApp = this.smartAppService.getSmartApp(
           installedSmartApp.smartAppId
         );
+        let retVal;
+        let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
+        let context = this.buildSmartAppSandbox(installedSmartApp);
 
-        let retVal = this.runEntityMethod(
-          smartApp.file,
-          methodName,
-          `smartApp_${smartApp.id}`,
-          this.buildSmartAppSandbox(installedSmartApp),
-          args
-        );
+        console.log("stateCopy", JSON.stringify(stateCopy));
+
+        const data = fs.readFileSync(smartApp.file);
+
+        //TODO: can this context be saved and reused?
+        vm.createContext(context);
+        vm.runInContext(data.toString(), context, {
+          filename: `smartApp_${smartApp.id}.js`,
+        });
+        if (typeof context[methodName] === "function") {
+          let myFunction: Function = context[methodName];
+          try {
+            if (Array.isArray(args)) {
+              retVal = myFunction.call(null, ...args);
+            } else {
+              retVal = myFunction.call(null, args);
+            }
+            //update state
+            this.smartAppService.updateInstalledSmartAppState(
+              installedSmartApp.id,
+              stateCopy,
+              context.state
+            );
+          } catch (err) {
+            console.log(err);
+          }
+        }
+
         resolve(retVal);
       } catch (error) {
         reject(error);
@@ -136,6 +160,7 @@ export class EntityService {
   private buildSmartAppSandbox(installedSmartApp: InstalledSmartApp): any {
     let sandbox: any = {};
     sandbox["log"] = Logger;
+    sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
       this.eventService,
@@ -147,11 +172,6 @@ export class EntityService {
         smartAppDelegate
       );
     });
-
-    // sandbox["subscribe"] = smartAppDelegate.subscribe.bind(smartAppDelegate);
-    // sandbox["unsubscribe"] =
-    //   smartAppDelegate.unsubscribe.bind(smartAppDelegate);
-    // sandbox["unschedule"] = smartAppDelegate.unschedule.bind(smartAppDelegate);
 
     let settingsObject: any = {};
     let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
@@ -214,6 +234,10 @@ export class EntityService {
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
+        //TODO: is there a better way to handle this?
+        if (dwProp === "_device" || dwProp === "_deviceService") {
+         return dwTarget[dwProp];
+        }
         const origMethod = dwTarget[dwProp];
         if (origMethod) {
           return origMethod;
@@ -234,7 +258,6 @@ export class EntityService {
     let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
       device.deviceHandlerId
     );
-
     //TODO: check that method name is listed as a command
     try {
       this.runEntityMethod(
@@ -314,6 +337,9 @@ export class EntityService {
       } catch (err) {
         console.log(err);
       }
+    } else {
+      //TODO: do something about missing methods
+      console.log(`method ${methodName} missing on entity ${entityName}`);
     }
   }
 }

@@ -122,6 +122,7 @@ function contactSensorEvent(evt) {
     currentTime < offsetSunriseAndSunset.sunrise ||
     currentTime > offsetSunriseAndSunset.sunset
   ) {
+    let openContacts = false;
     if (evt.value == "open") {
       if (!state.switchIdList) state.switchIdList = [];
 
@@ -130,19 +131,19 @@ function contactSensorEvent(evt) {
         if (currentValue != "on") {
           // turn on for x minutes
           mySwitch.on();
-          state.switchIdList.add(mySwitch.id);
+          state.switchIdList.push(mySwitch.id);
         }
-        log.debug("${mySwitch.id} current value ${currentValue}");
+        log.debug(`${mySwitch.id} current value ${currentValue}`);
       });
       state.switchIdList = [...new Set(state.switchIdList)];
       // turn off lights in "offTime" minutes
       if (state.switchIdList && !openContacts) {
-        runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
           data: { switchIdList: state.switchIdList },
         });
       }
     } else if (evt.value == "closed") {
-      let openContacts = false;
+      
       settings.contacts.forEach((contactSensor) => {
         let currentValue = contactSensor.currentValue("contact");
         if (currentValue == "open") {
@@ -151,7 +152,7 @@ function contactSensorEvent(evt) {
       });
       // reschedule lights to turn off in "offTime" minutes when a closed event happens
       if (state.switchIdList && !openContacts) {
-        runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
           data: { switchIdList: state.switchIdList },
         });
       }
@@ -173,7 +174,7 @@ function turnOffLights(data) {
   });
 
   if (openContacts) {
-    runIn((offTime != null ? offTime : 10) * 60, "turnOffLights", {
+    runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
       data: { switchIdList: state.switchIdList },
     });
   } else {
