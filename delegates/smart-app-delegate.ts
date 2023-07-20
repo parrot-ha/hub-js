@@ -3,6 +3,7 @@ import { EntityWrapper } from "../models/entity-wrapper";
 import { EventService } from "../services/event-service";
 import { InstalledSmartApp } from "../models/installed-smart-app";
 import { LocationService } from "../services/location-service";
+import { ServiceFactory } from "../services/service-factory";
 
 export class SmartAppDelegate {
   private _eventService: EventService;
@@ -94,9 +95,17 @@ export class SmartAppDelegate {
   public runIn(
     delayInSeconds: number,
     handlerMethod: string,
-    options: Map<string, any> = new Map<string, any>()
+    options: any = {}
   ): void {
-    console.log("Implement runIn!");
+    ServiceFactory.getInstance()
+      .getScheduleService()
+      .runIn(
+        delayInSeconds,
+        "SMARTAPP",
+        this._installedSmartApp.id,
+        handlerMethod,
+        options
+      );
   }
 
   public definition(definitionInfo: any) {

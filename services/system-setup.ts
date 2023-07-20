@@ -1,6 +1,5 @@
 import fs from "fs";
 import { ServiceFactory } from "./service-factory";
-import winston from "winston";
 // setup the system at start
 
 // create any user directories needed
@@ -31,18 +30,14 @@ export function setupSystem() {
 
   ServiceFactory.getInstance().getSmartAppService().initialize();
 
-  // create logger
-  //TODO: create logger module
-  winston.loggers.add('parrotLogger', {
-    transports: [
-      new winston.transports.Console({ level: 'silly' }),
-      new winston.transports.File({ filename: 'parrothub.log' })
-    ]
-  });
-
-
+  ServiceFactory.getInstance().getScheduleService().initialize();
 }
 
-export function shutdownSystem() {
-  ServiceFactory.getInstance().getDeviceService().shutdown();
+export function shutdownSystem(): Promise<any> {
+  let deviceServiceShutdownPromise = ServiceFactory.getInstance()
+    .getDeviceService()
+    .shutdown();
+  let scheduleShutdownPromise =
+    ServiceFactory.getInstance().getScheduleService().shutdown();
+  return Promise.all([deviceServiceShutdownPromise, scheduleShutdownPromise]);
 }

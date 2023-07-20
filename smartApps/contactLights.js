@@ -1,15 +1,3 @@
-// const smartAppId = "19c15ad0-f063-47db-852b-be54fb136e0e";
-
-// const definition = {
-//   name: "Contact Lights",
-//   namespace: "com.parrotha",
-//   author: "Parrot HA",
-//   description: "Turn on and off lights based on contact sensors",
-//   category: "",
-//   iconUrl: "",
-//   iconX2Url: "",
-// };
-
 definition({
   name: "Contact Lights",
   namespace: "com.parrotha",
@@ -138,12 +126,15 @@ function contactSensorEvent(evt) {
       state.switchIdList = [...new Set(state.switchIdList)];
       // turn off lights in "offTime" minutes
       if (state.switchIdList && !openContacts) {
-        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
-          data: { switchIdList: state.switchIdList },
-        });
+        runIn(
+          (settings.offTime != null ? settings.offTime : 10) * 60,
+          "turnOffLights",
+          {
+            data: { switchIdList: state.switchIdList },
+          }
+        );
       }
     } else if (evt.value == "closed") {
-      
       settings.contacts.forEach((contactSensor) => {
         let currentValue = contactSensor.currentValue("contact");
         if (currentValue == "open") {
@@ -152,9 +143,13 @@ function contactSensorEvent(evt) {
       });
       // reschedule lights to turn off in "offTime" minutes when a closed event happens
       if (state.switchIdList && !openContacts) {
-        runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
-          data: { switchIdList: state.switchIdList },
-        });
+        runIn(
+          (settings.offTime != null ? settings.offTime : 10) * 60,
+          "turnOffLights",
+          {
+            data: { switchIdList: state.switchIdList },
+          }
+        );
       }
     }
   } else {
@@ -163,7 +158,7 @@ function contactSensorEvent(evt) {
 }
 
 function turnOffLights(data) {
-  log.debug(`data ${data}`);
+  log.debug(`data ${JSON.stringify(data)}`);
   // check if contact is still open and do another runIn to check again in x minutes
   let openContacts = false;
   settings.contacts.forEach((contactSensor) => {
@@ -174,12 +169,16 @@ function turnOffLights(data) {
   });
 
   if (openContacts) {
-    runIn((settings.offTime != null ? settings.offTime : 10) * 60, "turnOffLights", {
-      data: { switchIdList: state.switchIdList },
-    });
+    runIn(
+      (settings.offTime != null ? settings.offTime : 10) * 60,
+      "turnOffLights",
+      {
+        data: { switchIdList: state.switchIdList },
+      }
+    );
   } else {
     settings.switches.forEach((mySwitch) => {
-      if (state.switchIdList?.contains(mySwitch.id)) {
+      if (state.switchIdList?.indexOf(mySwitch.id) > -1) {
         mySwitch.off();
       }
     });

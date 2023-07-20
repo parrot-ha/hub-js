@@ -2,12 +2,12 @@ import * as crypto from "crypto";
 import { InstalledSmartApp } from "../models/installed-smart-app";
 import { SmartApp, SmartAppType } from "../models/smart-app";
 import YAML from "yaml";
-import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting";
 import { SmartAppMetadataDelegate } from "../delegates/smart-app-metadata-delegate";
-import { Logger } from "./logger-service";
 import { SmartAppDataStore } from "../data-store/smart-app-data-store";
 import { SmartAppInUseError } from "../errors/smart-app-in-use-error";
 import { difference } from "../utils/object-utils";
+import { EntityLogger } from "./entity-logger-service";
+const logger = require("./logger-service")({ source: "SmartAppService" });
 
 const fs = require("fs");
 const path = require("path");
@@ -29,6 +29,7 @@ export class SmartAppService {
   }
 
   public shutdown(): void {
+    logger.trace("shutting down device service");
     console.log("shutting down device service");
     //TODO: handle extensions
     // if (extensionService != null) {
@@ -147,13 +148,13 @@ export class SmartAppService {
         newSmartApp.oAuthClientId != null &&
         newSmartApp.oAuthClientSecret != null)
     ) {
-      console.log("Changes for file " + newSmartApp.file);
+      logger.debug("Changes for file " + newSmartApp.file);
       newSmartApp.id = oldSmartApp.id;
       newSmartApp.oAuthTokens = oldSmartApp.oAuthTokens;
       this._smartAppDataStore.updateSmartApp(newSmartApp);
     } else {
       // only difference is the id,, so no changes
-      console.log("No changes for file " + newSmartApp.file);
+      logger.debug("No changes for file " + newSmartApp.file);
     }
   }
 
@@ -188,21 +189,21 @@ export class SmartAppService {
 
       if (existingSmartApp) {
         if (existingSmartApp.length > 1) {
-          console.log("Found more than one matching Smart App!");
+          logger.warn("Found more than one matching Smart App!");
         } else if (
           !newSmartApp.equalsIgnoreId(existingSmartApp[0], false) ||
           (!newSmartApp.equalsIgnoreId(existingSmartApp[0], true) &&
             newSmartApp.oAuthClientId != null &&
             newSmartApp.oAuthClientSecret != null)
         ) {
-          console.log("Changes for file " + newSmartApp.file);
+          logger.debug("Changes for file " + newSmartApp.file);
           newSmartApp.id = existingSmartApp[0].id;
           newSmartApp.oAuthTokens = existingSmartApp[0].oAuthTokens;
 
           this._smartAppDataStore.updateSmartApp(newSmartApp);
         } else {
           // only difference is the id,, so no changes
-          console.log("No changes for file " + newSmartApp.file);
+          logger.debug("No changes for file " + newSmartApp.file);
         }
       } else {
         // we have a new smart app.
@@ -218,7 +219,9 @@ export class SmartAppService {
         YAML.stringify(isa),
         (err: any) => {
           if (err) throw err;
-          console.log(`The installed smart app file ${isa.id} has been saved!`);
+          logger.debug(
+            `The installed smart app file ${isa.id} has been saved!`
+          );
         }
       );
     });
@@ -242,7 +245,7 @@ export class SmartAppService {
           );
           smartAppInfo.set(smartApp.id, smartApp);
         } catch (err) {
-          console.log("error processing system smart app files", err);
+          logger.warn("error processing system smart app files" + err.message);
         }
       }
     });
@@ -321,7 +324,7 @@ export class SmartAppService {
     deviceMetadataDelegate: SmartAppMetadataDelegate
   ): any {
     let sandbox: any = {};
-    sandbox["log"] = Logger;
+    sandbox["log"] = new EntityLogger("SMARTAPP", "NONE", "New Smart App");
     deviceMetadataDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (deviceMetadataDelegate as any)[
         sandboxMethod

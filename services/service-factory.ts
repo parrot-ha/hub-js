@@ -5,17 +5,18 @@ import { EntityService } from "./entity-service";
 import { EventService } from "./event-service";
 import { SmartAppService } from "./smart-app-service";
 import { LocationService } from "./location-service";
+import { ScheduleService } from "./schedule-service";
 
 export class ServiceFactory {
-  private static instance: ServiceFactory;
+  private static _instance: ServiceFactory;
 
   private constructor() {}
 
   public static getInstance(): ServiceFactory {
-    if (!ServiceFactory.instance) {
-      ServiceFactory.instance = new ServiceFactory();
+    if (!ServiceFactory._instance) {
+      ServiceFactory._instance = new ServiceFactory();
     }
-    return ServiceFactory.instance;
+    return ServiceFactory._instance;
   }
 
   private deviceService: DeviceService;
@@ -66,5 +67,14 @@ export class ServiceFactory {
       this._locationService = new LocationService();
     }
     return this._locationService;
+  }
+
+  private _scheduleService: ScheduleService;
+
+  public getScheduleService(): ScheduleService {
+    if (!this._scheduleService) {
+      this._scheduleService = new ScheduleService(this.getEntityService());
+    }
+    return this._scheduleService;
   }
 }

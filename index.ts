@@ -1,15 +1,14 @@
-import express, { Application, Request, Response } from "express";
-import { DeviceService } from "./services/device-service";
+import express, { Application } from "express";
 import { ServiceFactory } from "./services/service-factory";
 import { setupSystem, shutdownSystem } from "./services/system-setup";
-
-let deviceService: DeviceService =
-  ServiceFactory.getInstance().getDeviceService();
+import WebSocket from "ws";
+const logger = require("./services/logger-service")({ source: "main" });
 
 // set up system for running
 setupSystem();
 
 const app: Application = express();
+
 app.use(express.json()); // for parsing application/json
 
 // include routes/controllers
@@ -23,13 +22,27 @@ require("./routes")(
 
 const port = process.env.PORT || 6501;
 const server = app.listen(port, () => {
-  console.log(`listening on ${port}`);
+  logger.info(`listening on ${port}`);
 });
 
+const websocketServer: WebSocket.Server = require("./routes/websocket")(
+  server,
+  ServiceFactory.getInstance().getEntityService()
+);
+
 const exitFunction = () => {
-  shutdownSystem();
-  server.close(() => process.exit(0));
+  logger.debug("starting shut down");
+  websocketServer.clients?.forEach((ws: WebSocket) => {
+    ws.close();
+  });
+  websocketServer.close();
+  shutdownSystem().then(() => {
+    server.close(() => {
+      logger.debug("finished shut down");
+      process.exit(0);
+    });
+  });
 };
 
-process.on("SIGTERM", exitFunction);
 process.on("SIGINT", exitFunction);
+process.on("SIGTERM", exitFunction);
