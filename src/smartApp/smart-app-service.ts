@@ -1,16 +1,14 @@
 import * as crypto from "crypto";
 import { InstalledSmartApp } from "./models/installed-smart-app";
 import { SmartApp, SmartAppType } from "./models/smart-app";
-import YAML from "yaml";
 import { SmartAppMetadataDelegate } from "./smart-app-metadata-delegate";
 import { SmartAppDataStore } from "./smart-app-data-store";
 import { SmartAppInUseError } from "./errors/smart-app-in-use-error";
 import { difference } from "../utils/object-utils";
 import { EntityLogger } from "../entity/entity-logger-service";
-const logger = require("../services/logger-service")({ source: "SmartAppService" });
+const logger = require("../hub/logger-service")({ source: "SmartAppService" });
 
 const fs = require("fs");
-const path = require("path");
 const vm = require("vm");
 
 export class SmartAppService {
@@ -210,21 +208,6 @@ export class SmartAppService {
         this._smartAppDataStore.createSmartApp(newSmartApp);
       }
     }
-  }
-
-  private saveInstalledSmartApps() {
-    this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
-      fs.writeFile(
-        `userData/config/installedSmartApps/${isa.id}.yaml`,
-        YAML.stringify(isa),
-        (err: any) => {
-          if (err) throw err;
-          logger.debug(
-            `The installed smart app file ${isa.id} has been saved!`
-          );
-        }
-      );
-    });
   }
 
   private processSmartAppInfo(): Map<string, SmartApp> {

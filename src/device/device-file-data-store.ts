@@ -4,7 +4,7 @@ import { DeviceDataStore } from "./device-data-store";
 import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
-const logger = require("../services/logger-service")({
+const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
 
@@ -162,7 +162,6 @@ export class DeviceFileDataStore implements DeviceDataStore {
         deviceYaml,
         (err: any) => {
           if (err) throw err;
-          logger.debug(`The device file ${device.id} has been saved!`);
         }
       );
     }

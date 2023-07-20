@@ -2,7 +2,7 @@ import express, { Application } from "express";
 import { ServiceFactory } from "./hub/service-factory";
 import { setupSystem, shutdownSystem } from "./hub/hub-setup";
 import WebSocket from "ws";
-const logger = require("./services/logger-service")({ source: "main" });
+const logger = require("./hub/logger-service")({ source: "main" });
 
 // set up system for running
 setupSystem();
