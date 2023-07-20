@@ -1,27 +1,25 @@
-class Logger {
-  static trace(msg: string) {
-    this.logMsg("trace", msg);
-  }
+const { createLogger, format, transports } = require("winston");
+const { combine, timestamp, json } = format;
 
-  static debug(msg: string) {
-    this.logMsg("debug", msg);
-  }
+const _winstonLogger = createLogger({
+  level: "silly",
+  transports: [
+    new transports.File({
+      format: combine(timestamp(), json()),
+      filename: "parrothub.log",
+    }),
+  ],
+});
 
-  static info(msg: string) {
-    this.logMsg("info", msg);
-  }
-
-  static warn(msg: string) {
-    this.logMsg("warn", msg);
-  }
-
-  static error(msg: string) {
-    this.logMsg("error", msg);
-  }
-
-  private static logMsg(level: string, msg: string) {
-    console.log(level, msg);
-  }
+console.log("winston env", process.env.NODE_ENV);
+if (process.env.NODE_ENV != "production") {
+  _winstonLogger.add(
+    new transports.Console({
+      format: format.simple(),
+    })
+  );
 }
 
-export { Logger }
+module.exports = function (metadata: any = { source: "default" }) {
+  return _winstonLogger.child(metadata);
+};

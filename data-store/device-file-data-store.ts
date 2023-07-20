@@ -4,8 +4,9 @@ import { DeviceDataStore } from "./device-data-store";
 import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
-const winston = require("winston");
-const logger = winston.loggers.get("parrotLogger");
+const logger = require("../services/logger-service")({
+  source: "DeviceFileDataStore",
+});
 
 export class DeviceFileDataStore implements DeviceDataStore {
   private _deviceHandlers: Map<string, DeviceHandler>;
@@ -74,7 +75,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
         fs.unlinkSync(fileName);
       }
     } catch (err) {
-      console.log("Unable to delete device " + id);
+      logger.warn("Unable to delete device " + id);
       return false;
     }
     try {
@@ -85,7 +86,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
       }
       this.getDeviceCache().delete(id);
     } catch (err) {
-      console.log(err);
+      logger.warn(err);
     }
 
     return true;
@@ -145,21 +146,26 @@ export class DeviceFileDataStore implements DeviceDataStore {
         }
       });
     } catch (err) {
-      logger.warn(`Error loading files from userData/config/devices/: ${err.message}`);
+      logger.warn(
+        `Error loading files from userData/config/devices/: ${err.message}`
+      );
     }
     this._devices = newDevices;
     this._deviceDNItoIdMap = newDeviceDNItoIdMap;
   }
 
   private saveDeviceToFile(device: Device) {
-    fs.writeFile(
-      `userData/config/devices/${device.id}.yaml`,
-      YAML.stringify(device.toJSON()),
-      (err: any) => {
-        if (err) throw err;
-        logger.debug(`The device file ${device.id} has been saved!`);
-      }
-    );
+    let deviceYaml = YAML.stringify(device.toJSON());
+    if (deviceYaml?.trim().length > 0) {
+      fs.writeFile(
+        `userData/config/devices/${device.id}.yaml`,
+        deviceYaml,
+        (err: any) => {
+          if (err) throw err;
+          logger.debug(`The device file ${device.id} has been saved!`);
+        }
+      );
+    }
   }
 
   /*
@@ -219,7 +225,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
         }
       });
     } catch (err) {
-      console.log("error loading user device handler directory", err);
+      logger.warn("error loading user device handler directory", err);
     }
     return deviceHandlerSourceList;
   }
@@ -232,11 +238,11 @@ export class DeviceFileDataStore implements DeviceDataStore {
           YAML.stringify(this.getDeviceHandlerCache().values()),
           (err: any) => {
             if (err) throw err;
-            console.log("device handler config file has been saved!");
+            logger.debug("device handler config file has been saved!");
           }
         );
       } catch (err) {
-        console.log("error when saving device handler config file", err);
+        logger.warn("error when saving device handler config file", err);
       }
     }
   }
@@ -262,7 +268,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
         }
       }
     } catch (err) {
-      console.log(err);
+      logger.warn(err);
     }
     return deviceHandlerInfo;
   }

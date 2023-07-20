@@ -7,8 +7,9 @@ import YAML from "yaml";
 import fs from "fs";
 import { randomUUID } from "crypto";
 
-const winston = require("winston");
-const logger = winston.loggers.get("parrotLogger");
+const logger = require("../services/logger-service")({
+  source: "SmartAppFileDataStore",
+});
 
 export class SmartAppFileDataStore implements SmartAppDataStore {
   private _smartApps: Map<string, SmartApp>;
@@ -210,7 +211,6 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
           }
         } catch (err) {
           logger.warn(`Error loading file ${isaDirFile}`);
-          console.log(err);
         }
       });
     } catch (err) {
@@ -225,20 +225,24 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   private saveInstalledSmartApp(isaId: string): boolean {
     let existingIsa: InstalledSmartApp = this.getInstalledSmartApp(isaId);
     try {
-      fs.writeFile(
-        `userData/config/installedSmartApps/${isaId}.yaml`,
-        YAML.stringify(existingIsa.toJSON()),
-        (err: any) => {
-          if (err) throw err;
-          console.log("installed smart app file has been saved!");
-        }
-      );
-      return true;
+      let isaYaml = YAML.stringify(existingIsa.toJSON());
+      if (isaYaml?.trim().length > 0) {
+        fs.writeFile(
+          `userData/config/installedSmartApps/${isaId}.yaml`,
+          isaYaml,
+          (err: any) => {
+            if (err) throw err;
+            logger.debug("installed smart app file has been saved!");
+          }
+        );
+        return true;
+      } else {
+        return false;
+      }
     } catch (err) {
-      console.log("error when saving installed smart app file", err);
+      logger.warn("error when saving installed smart app file", err);
+      return false;
     }
-
-    return false;
   }
 
   /*
@@ -291,7 +295,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
         }
       });
     } catch (err) {
-      console.log("error loading user smartApp directory", err);
+      logger.warn("error loading user smartApp directory", err);
     }
     return smartAppSourceList;
   }
@@ -305,7 +309,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
           fs.unlinkSync(sa.file);
         }
       } catch (err) {
-        console.log("Unable to delete smart app " + id);
+        logger.warn("Unable to delete smart app " + id);
         return false;
       }
     }
@@ -344,7 +348,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
       });
       return smartApp.id;
     } catch (err) {
-      console.log("error when saving smartApp file", err);
+      logger.warn("error when saving smartApp file", err);
       return null;
     }
   }
@@ -357,11 +361,11 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
           YAML.stringify(this.getSmartAppCache().values()),
           (err: any) => {
             if (err) throw err;
-            console.log("smartApp config file has been saved!");
+            logger.debug("smartApp config file has been saved!");
           }
         );
       } catch (err) {
-        console.log("error when saving smartApp config file", err);
+        logger.warn("error when saving smartApp config file", err);
       }
     }
   }
@@ -384,7 +388,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
         }
       }
     } catch (err) {
-      console.log(err);
+      logger.warn(err);
     }
     return smartAppInfo;
   }

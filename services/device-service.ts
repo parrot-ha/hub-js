@@ -2,7 +2,6 @@ import * as crypto from "crypto";
 import { DeviceHandler, DeviceHandlerType } from "../models/device-handler";
 import { Device } from "../models/device";
 import { Event } from "../models/event";
-import { Logger } from "./logger-service";
 import { DeviceMetadataDelegate } from "../delegates/device-metadata-delegate";
 import { DeviceDataStore } from "../data-store/device-data-store";
 import { DeviceSetting } from "../models/device-setting";
@@ -10,6 +9,7 @@ import { State } from "../models/state";
 import { Attribute } from "../models/attribute";
 import { Capability } from "../models/capability";
 import { Capabilities } from "../models/capabilities";
+import { EntityLogger } from "./entity-logger-service";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -119,12 +119,15 @@ export class DeviceService {
     // }
   }
 
-  public shutdown(): void {
+  public shutdown(): Promise<any> {
     console.log("shutting down device service");
     //TODO: handle extensions
     // if (extensionService != null) {
     //     extensionService.unregisterStateListener(this);
     // }
+    return new Promise((resolve) => {
+      resolve(true);
+    });
   }
 
   public reprocessDeviceHandlers(): void {
@@ -326,7 +329,7 @@ export class DeviceService {
     deviceMetadataDelegate: DeviceMetadataDelegate
   ): any {
     let sandbox: any = {};
-    sandbox["log"] = Logger;
+    sandbox["log"] = new EntityLogger("DEVICE", "NONE", "New Device Handler");
     deviceMetadataDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (deviceMetadataDelegate as any)[
         sandboxMethod

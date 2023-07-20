@@ -1,4 +1,3 @@
-import { Logger } from "./logger-service";
 import { DeviceDelegate } from "../delegates/device-delegate";
 import { EventService } from "./event-service";
 import { Subscription } from "../models/subscription";
@@ -14,6 +13,8 @@ import { InstalledSmartAppSetting } from "../models/installed-smart-app-setting"
 import { DeviceWrapper } from "../models/device-wrapper";
 import { DeviceSetting } from "../models/device-setting";
 import { LocationService } from "./location-service";
+import { EntityLogger } from "./entity-logger-service";
+import { EventListener } from "../entity/event-listener";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -23,6 +24,7 @@ export class EntityService {
   private smartAppService: SmartAppService;
   private eventService: EventService;
   private _locationService: LocationService;
+  private _eventListeners: Set<EventListener> = new Set<EventListener>();
 
   constructor(
     deviceService: DeviceService,
@@ -69,8 +71,8 @@ export class EntityService {
       }
     }
 
-    // TODO: future functionality to notify any processes that are looking for events.
-    //notifyEventListeners(event);
+    // notify any processes that are looking for events.
+    this.notifyEventListeners(event);
 
     subscriptions.forEach((subscription: Subscription) => {
       //TODO: create a worker pool for these
@@ -80,6 +82,25 @@ export class EntityService {
         [event]
       );
     });
+  }
+
+  public registerEventListener(eventListener: EventListener): void {
+    this._eventListeners.add(eventListener);
+  }
+
+  public unregisterEventListener(eventListener: EventListener): void {
+    this._eventListeners.delete(eventListener);
+  }
+
+  private notifyEventListeners(event: Event): void {
+    if (this._eventListeners.size > 0) {
+      this._eventListeners.forEach((eventListener) => {
+        new Promise<void>((resolve) => {
+          eventListener.eventReceived(event);
+          resolve();
+        });
+      });
+    }
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
@@ -159,7 +180,11 @@ export class EntityService {
 
   private buildSmartAppSandbox(installedSmartApp: InstalledSmartApp): any {
     let sandbox: any = {};
-    sandbox["log"] = Logger;
+    sandbox["log"] = new EntityLogger(
+      "SMARTAPP",
+      installedSmartApp.id,
+      installedSmartApp.displayName
+    );
     sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
@@ -236,7 +261,7 @@ export class EntityService {
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
         //TODO: is there a better way to handle this?
         if (dwProp === "_device" || dwProp === "_deviceService") {
-         return dwTarget[dwProp];
+          return dwTarget[dwProp];
         }
         const origMethod = dwTarget[dwProp];
         if (origMethod) {
@@ -274,7 +299,7 @@ export class EntityService {
 
   private buildDeviceSandbox(device: Device): any {
     let sandbox: any = {};
-    sandbox["log"] = Logger;
+    sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
     sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
     sandbox["httpGet"] = deviceDelegate.httpGet;
