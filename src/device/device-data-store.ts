@@ -4,6 +4,8 @@ import { Device } from "./models/device";
 export interface DeviceDataStore {
   getDevices(): Device[];
 
+  getDevicesByCapability(capability: string): Device[];
+
   getDevice(id: string): Device;
 
   updateDevice(device: Device): void;

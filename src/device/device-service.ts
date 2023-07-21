@@ -37,6 +37,10 @@ export class DeviceService {
     return this._deviceDataStore.getDeviceHandler(id);
   }
 
+  public getDevicesByCapability(capability: string): Device[] {
+    return this._deviceDataStore.getDevicesByCapability(capability);
+  }
+
   public addDevice(device: Device) {
     if (device.name == null) {
       device.name = this._deviceDataStore.getDeviceHandler(

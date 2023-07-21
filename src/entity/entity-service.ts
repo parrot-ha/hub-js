@@ -15,6 +15,7 @@ import { DeviceSetting } from "../device/models/device-setting";
 import { LocationService } from "../hub/location-service";
 import { EntityLogger } from "./entity-logger-service";
 import { EventListener } from "./event-listener";
+import { isEmpty } from "../utils/string-utils";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -176,6 +177,68 @@ export class EntityService {
         reject(error);
       }
     });
+  }
+
+  public  updateOrInstallInstalledSmartApp( id:string): void {
+    let installedSmartApp: InstalledSmartApp = this.smartAppService.getInstalledSmartApp(id);
+    if (installedSmartApp.installed) {
+        this.runSmartAppMethod(id, "updated", null);
+    } else {
+        installedSmartApp.installed = true;
+        this.smartAppService.updateInstalledSmartApp(installedSmartApp);
+        this.runSmartAppMethod(id, "installed", null);
+    }
+}
+
+  public getInstalledSmartAppConfigurationPage(
+    id: string,
+    pageName: string
+  ): any {
+    try {
+      let preferences: any =
+        this.smartAppService.getSmartAppPreferencesByInstalledSmartApp(id);
+
+      if (preferences.pageList != null) {
+        // multiple pages
+        if (pageName == null) {
+          // get first page
+          let firstPage: any = preferences.pageList[0];
+          if (firstPage.content) {
+            // this is a dynamic page, run method to get content
+            return this.getDynamicPage(id, firstPage);
+          } else {
+            return firstPage;
+          }
+        } else {
+          let page = (preferences.pageList as Array<any>).find((page) => pageName === page.name);
+          if (page) {
+            if (page.content) {
+              // this is a dynamic page, run method to get content
+              return this.getDynamicPage(id, page);
+            } else {
+              return page;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log(err);
+    }
+    return null;
+  }
+
+  private getDynamicPage(id: string, page: any): any {
+    let content: string = page.content.toString();
+    // this is a dynamic page, run method to get content
+    let dynamicPageResponse: any = this.runSmartAppMethod(id, content, null);
+
+    if (dynamicPageResponse) {
+      dynamicPageResponse.content = content;
+      if (isEmpty(dynamicPageResponse.title) && !isEmpty(page.title)) {
+        dynamicPageResponse.title = page.title;
+      }
+    }
+    return dynamicPageResponse;
   }
 
   private buildSmartAppSandbox(installedSmartApp: InstalledSmartApp): any {

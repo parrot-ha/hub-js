@@ -1,3 +1,8 @@
+import {
+  createStandardPage,
+  createStandardInput,
+} from "../entity/entity-preferences-helper";
+
 export class SmartAppMetadataDelegate {
   private _includeDefinition: boolean;
   private _includePreferences: boolean;
@@ -6,6 +11,8 @@ export class SmartAppMetadataDelegate {
     "preferences",
     "section",
     "input",
+    "page",
+    "dynamicPage",
   ];
   metadataValue: any = {
     definition: {},
@@ -13,6 +20,8 @@ export class SmartAppMetadataDelegate {
   };
 
   private temporarySection: any = null;
+  private temporaryPage: any = null;
+  private singlePreferencesPage: boolean = false;
 
   constructor(
     includeDefinition: boolean = true,
@@ -26,31 +35,23 @@ export class SmartAppMetadataDelegate {
     return this._sandboxMethods;
   }
 
-  public section(title: string, closure: Function) {
+  public section(params: any, closure: Function) {
     this.createTemporarySection();
-    this.temporarySection.title = title;
+    if (params) {
+      for (const key in params) {
+        this.temporarySection[key] = params[key];
+      }
+    }
+
     if (closure != null) {
       closure();
     }
     this.addTemporarySection();
   }
 
-  public input(name: string, type: string, additionalOptions: any) {
+  public input(params: any) {
     this.createTemporarySection();
-    console.log("input name", name, "type", type, "ao", additionalOptions);
-    let tempInput: any;
-    if (additionalOptions) {
-      tempInput = additionalOptions;
-    } else {
-      tempInput = {};
-    }
-    if (additionalOptions) {
-      for (const key in additionalOptions) {
-        tempInput[key] = additionalOptions[key];
-      }
-    }
-    tempInput.name = name;
-    tempInput.type = type;
+    let tempInput: any = createStandardInput(params);
     this.temporarySection.input.push(tempInput);
     this.temporarySection.body.push(tempInput);
   }
@@ -60,6 +61,12 @@ export class SmartAppMetadataDelegate {
       this.metadataValue.preferences = {};
       closure();
       this.addTemporarySection();
+      if (this.singlePreferencesPage) {
+        this.section({}, () => {
+          //TODO: create new section with default values (app name and modes)
+        });
+      }
+      this.addTemporaryPage();
     }
   }
 
@@ -69,23 +76,68 @@ export class SmartAppMetadataDelegate {
     }
   }
 
+  public dynamicPage(params: any, closure: Function) {
+    this.temporaryPage = createStandardPage();
+
+    for (let key of Object.keys(params)) {
+      this.temporaryPage[key] = params[key];
+    }
+
+    if (closure != null) {
+      closure();
+    }
+
+    let newDynamicPage: any = JSON.parse(JSON.stringify(this.temporaryPage));
+
+    this.temporaryPage = null;
+    return newDynamicPage;
+  }
+
+  public page(params: any, closure: Function): void {
+    this.temporaryPage = createStandardPage();
+    for (let key of Object.keys(params)) {
+      this.temporaryPage[key] = params[key];
+    }
+
+    if (closure != null) {
+      closure();
+    }
+
+    this.addTemporaryPage();
+  }
+
   private createTemporarySection() {
     if (!this.temporarySection) {
+      if (!this.temporaryPage) {
+        this.singlePreferencesPage = true;
+        this.temporaryPage = createStandardPage();
+      }
       this.temporarySection = {
         input: [],
         body: [],
+        hideable: false,
+        hidden: false,
       };
     }
   }
 
   private addTemporarySection() {
     if (this.temporarySection) {
-      if (!this.metadataValue.preferences.sections) {
-        this.metadataValue.preferences.sections = [];
-      }
-      this.metadataValue.preferences.sections.push(this.temporarySection);
+      this.temporaryPage.sections.push(this.temporarySection);
 
       this.temporarySection = null;
+    }
+  }
+
+  private addTemporaryPage() {
+    if (this.temporaryPage) {
+      if (!this.metadataValue.preferences.pageList) {
+        this.metadataValue.preferences.pageList = [];
+      }
+
+      this.metadataValue.preferences.pageList.push(this.temporaryPage);
+
+      this.temporaryPage = null;
     }
   }
 }

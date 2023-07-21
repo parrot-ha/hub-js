@@ -3,6 +3,7 @@ import { SmartAppService } from "../../smartApp/smart-app-service";
 import { EntityService } from "../../entity/entity-service";
 import { InstalledSmartApp } from "../../smartApp/models/installed-smart-app";
 import { SmartApp } from "../../smartApp/models/smart-app";
+import { InstalledSmartAppSetting } from "../../smartApp/models/installed-smart-app-setting";
 
 const express = require("express");
 
@@ -173,39 +174,42 @@ module.exports = function (
   //     ctx.result(new JsonBuilder(childAppListMap).toString());
   // });
 
-  // router.get("/:id/cfg/page", (req: Request, res: Response) => {
-  //     // get first page of smart app configuration or if single page app, get that.
-  //     let id: string = req.params.id;
-  //     Object pageInfo = entityService.getInstalledSmartAppConfigurationPage(id, null);
-  //     ctx.status(200);
-  //     ctx.contentType("application/json");
-  //     ctx.result(new JsonBuilder(pageInfo).toString());
-  // });
+  router.get("/:id/cfg/page", (req: Request, res: Response) => {
+    // get first page of smart app configuration or if single page app, get that.
+    let id: string = req.params.id;
+    let pageInfo: any = entityService.getInstalledSmartAppConfigurationPage(
+      id,
+      null
+    );
+    res.json(pageInfo);
+  });
 
-  // router.get("/:id/cfg/page/:pageName", (req: Request, res: Response) => {
-  //     // get named page of smart app configuration.
-  //     let id: string = req.params.id;
-  //     String pageName = ctx.pathParam("pageName");
-  //     Object pageInfo = entityService.getInstalledSmartAppConfigurationPage(id, pageName);
-  //     ctx.status(200);
-  //     ctx.contentType("application/json");
-  //     ctx.result(new JsonBuilder(pageInfo).toString());
-  // });
+  router.get("/:id/cfg/page/:pageName", (req: Request, res: Response) => {
+    // get named page of smart app configuration.
+    let id: string = req.params.id;
+    let pageName = req.params.pageName;
+    let pageInfo: any = entityService.getInstalledSmartAppConfigurationPage(
+      id,
+      pageName
+    );
+    res.json(pageInfo);
+  });
 
-  // router.get("/:id/cfg/settings", (req: Request, res: Response) => {
-  //     let id: string = req.params.id;
-  //     InstalledSmartApp installedSmartApp = smartAppService.getInstalledSmartApp(id);
-  //     List<InstalledSmartAppSetting> settings = installedSmartApp.getSettings();
-  //     Map<String, Map> settingsMap;
-  //     if (settings != null) {
-  //         settingsMap = settings.stream().collect(Collectors.toMap(data -> data.getName(), data -> data.toMap(true)));
-  //     } else {
-  //         settingsMap = new HashMap<>();
-  //     }
-  //     ctx.status(200);
-  //     ctx.contentType("application/json");
-  //     ctx.result(new JsonBuilder(settingsMap).toString());
-  // });
+  router.get("/:id/cfg/settings", (req: Request, res: Response) => {
+    let id: string = req.params.id;
+    let installedSmartApp: InstalledSmartApp =
+      smartAppService.getInstalledSmartApp(id);
+
+    let settings: InstalledSmartAppSetting[] = installedSmartApp.settings;
+
+    let settingsMap: any = {};
+    if (settings != null) {
+      settings.forEach((setting) => {
+        settingsMap[setting.name] = setting.toJSON(true);
+      });
+    }
+    res.json(settingsMap);
+  });
 
   // router.get("/:id/cfg/info", (req: Request, res: Response) => {
   //     let id: string = req.params.id;
@@ -222,26 +226,28 @@ module.exports = function (
   // });
 
   // // we are updating isa config and we are not done updating the cfg
-  // router.patch("/:id/cfg/settings", (req: Request, res: Response) => {
-  //     let id: string = req.params.id;
-  //     String body = ctx.body();
-  //     updateIAASettings(id, body);
-  //     buildStandardJsonResponse(ctx, true);
-  // });
+  router.patch("/:id/cfg/settings", (req: Request, res: Response) => {
+      let id: string = req.params.id;
+      //String body = ctx.body();
+      let updatedSettings = req.body;
+      smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
+
+      res.json({ success: true });
+  });
 
   // // we are done updating an isa so run installed or updated depending
-  // router.post("/:id/cfg/settings", (req: Request, res: Response) => {
-  //     let id: string = req.params.id;
-  //     String body = ctx.body();
-  //     updateIAASettings(id, body);
+  router.post("/:id/cfg/settings", (req: Request, res: Response) => {
+      let id: string = req.params.id;
+      let updatedSettings = req.body;
+      smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
 
-  //     try {
-  //         entityService.updateOrInstallInstalledSmartApp(id);
-  //         buildStandardJsonResponse(ctx, true);
-  //     } catch (Exception e) {
-  //         buildStandardJsonResponse(ctx, false, e.getMessage());
-  //     }
-  // });
+      try {
+          entityService.updateOrInstallInstalledSmartApp(id);
+          res.json({ success: true });
+      } catch (err) {
+          res.json({ success: false, message: err.message });
+      }
+  });
 
   return router;
 };

@@ -15,6 +15,7 @@ export class SmartAppDelegate {
     "unsubscribe",
     "unschedule",
     "definition",
+    "preferences",
     "runIn",
   ];
 
@@ -110,5 +111,8 @@ export class SmartAppDelegate {
 
   public definition(definitionInfo: any) {
     // this function is empty because we ignore definition in normal running
+  }
+  public preferences(params: any, closure: Function) {
+    // this function is empty because we ignore preferences in normal running
   }
 }

@@ -4,6 +4,7 @@ import { DeviceDataStore } from "./device-data-store";
 import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
+import { isBlank, deleteWhitespace } from "../utils/string-utils";
 const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
@@ -15,6 +16,33 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
   public getDevices(): Device[] {
     return Array.from(this.getDeviceCache().values());
+  }
+
+  getDevicesByCapability(capability: string): Device[] {
+    let devices: Device[] = [];
+    if (isBlank(capability)) {
+      return devices;
+    }
+    capability = capability.toLowerCase();
+    this.getDevices()?.forEach((device) => {
+      let deviceHandler: DeviceHandler = this.getDeviceHandler(
+        device.deviceHandlerId
+      );
+      if (deviceHandler != null) {
+        let capabilityList: string[] = deviceHandler.capabilityList;
+        if (capabilityList != null) {
+          capabilityList.forEach((deviceCapability) => {
+            if (
+              capability === deleteWhitespace(deviceCapability)?.toLowerCase()
+            ) {
+              devices.push(device);
+            }
+          });
+        }
+      }
+    });
+
+    return devices;
   }
 
   public getDevice(id: string): Device {

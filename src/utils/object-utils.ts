@@ -61,3 +61,15 @@ export function difference(
 
   return { removed, updated, added };
 }
+
+/**
+ * Returns undefined if object cannot be coverted
+ *
+ * @param obj An object to conver to a number
+ */
+export function toInteger(obj: any): number {
+  if (!obj) return;
+  let retVal = Number.parseInt(obj.toString());
+  if (Number.isNaN(retVal)) return;
+  else return retVal;
+}

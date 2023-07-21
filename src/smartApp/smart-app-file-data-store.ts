@@ -317,11 +317,10 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     this.saveSmartApps();
     return true;
   }
+
   getSmartAppSourceCode(id: string): string {
     let smartApp: SmartApp = this.getSmartApp(id);
-    if (smartApp?.type == SmartAppType.USER) {
-      return fs.readFileSync(smartApp.file)?.toString();
-    }
+    return fs.readFileSync(smartApp.file)?.toString();
   }
 
   public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {

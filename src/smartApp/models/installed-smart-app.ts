@@ -20,6 +20,21 @@ export class InstalledSmartApp {
     return this.label;
   }
 
+  public getSettingByName(name: string): InstalledSmartAppSetting {
+    if (this.settings) {
+      return this.settings.find((setting) => setting.name === name);
+    } else {
+      return null;
+    }
+  }
+
+  public addSetting(setting: InstalledSmartAppSetting): void {
+    if (this.settings == null) {
+      this.settings = [];
+    }
+    this.settings.push(setting);
+  }
+
   public toJSON() {
     return {
       id: this.id,

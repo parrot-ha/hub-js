@@ -4,6 +4,7 @@ import YAML from "yaml";
 import fs from "fs";
 import { randomUUID } from "crypto";
 import { Mode } from "./models/mode";
+import { toInteger } from "../utils/object-utils";
 const SunCalc = require("suncalc");
 
 export class LocationService {
@@ -147,16 +148,8 @@ export class LocationService {
     let latitude = null;
     let longitude = null;
 
-    //TODO: handle options
-    // let zipCode = options?.get("zipCode")?.toString();
-    // if (zipCode != null && zipCode.trim().length > 0) {
-    //     // TODO: use a map of zip codes to lat/long to get date time.
-    //     throw new Error("Sunrise/Sunset by zip code not implemented yet.");
-    // }
-    let sunriseOffset = 0;
-    let sunsetOffset = 0;
-    // let sunriseOffset = HubUtils.timeOffset(options.get("sunriseOffset"));
-    // let sunsetOffset = HubUtils.timeOffset(options.get("sunsetOffset"));
+    let sunriseOffset = toInteger(options?.sunriseOffset) || 0;
+    let sunsetOffset = toInteger(options?.sunsetOffset) || 0;
 
     if (latitude == null && longitude == null && this.location != null) {
       latitude = this.location.latitude;
@@ -184,17 +177,4 @@ export class LocationService {
     }
     return sunriseSunsetObj;
   }
-
-  // public void calculateSunriseAndSunset() {
-  //     ZonedDateTime dateTime = ZonedDateTime.now();// date, time and timezone of calculation
-  //     dateTime = dateTime.withHour(0);
-
-  //     if (getLocation() != null && getLocation().getLatitude() != null && getLocation().getLongitude() != null) {
-  //         //double lat, lng = // geolocation
-  //         SunTimes times = SunTimes.compute()
-  //                 .on(dateTime)   // set a date
-  //                 .at(getLocation().getLatitude().doubleValue(), getLocation().getLongitude().doubleValue())   // set a location
-  //                 .execute();     // get the results
-  //     }
-  // }
 }

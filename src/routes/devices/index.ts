@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { DeviceService } from "../../device/device-service";
 import { EntityService } from "../../entity/entity-service";
 import { Device } from "../../device/models/device";
-import { DeviceHandler } from "../../device/models/device-handler";
 import { Command } from "../../device/models/command";
 import { Capability } from "../../device/models/capability";
 import { Capabilities } from "../../device/models/capabilities";
@@ -17,21 +16,69 @@ module.exports = function (
 ) {
   const router = express.Router();
   router.get("/", (req: Request, res: Response) => {
-    let devices: Device[] = deviceService.getDevices();
+    let filter: string;
+    if (typeof req.query.filter === "string") {
+      filter = req.query.filter;
+      if (filter.startsWith("capability.")) {
+        filter = filter.substring("capability.".length);
+      }
+    }
+
+    let fields: string[];
+    if (typeof req.query.field === "string") {
+      fields = [req.query.field];
+    } else if (Array.isArray(req.query.field)) {
+      fields = req.query.field as string[];
+    }
+
+    let devices: Device[];
+    if (filter) {
+      devices = deviceService.getDevicesByCapability(filter);
+    } else {
+      devices = deviceService.getDevices();
+    }
     let deviceListData: any[] = [];
 
     if (devices) {
       devices.forEach((device) => {
-        let devData: any = {
-          id: device.id,
-          name: device.name,
-          label: device.label,
-          displayName: device.displayName,
-          deviceNetworkId: device.deviceNetworkId,
-          type: deviceService.getDeviceHandler(device.deviceHandlerId)?.name,
-        };
+        if (fields) {
+          let devData: any = {};
+          fields.forEach((field) => {
+            switch (field) {
+              case "id":
+                devData.id = device.id;
+                break;
+              case "name":
+                devData.name = device.name;
+                break;
+              case "label":
+                devData.label = device.label;
+                break;
+              case "displayName":
+                devData.displayName = device.displayName;
+                break;
+              case "deviceNetworkId":
+                devData.deviceNetworkId = device.deviceNetworkId;
+                break;
+              case "type":
+                devData.type = deviceService.getDeviceHandler(
+                  device.deviceHandlerId
+                )?.name;
+            }
+          });
+          deviceListData.push(devData);
+        } else {
+          let devData: any = {
+            id: device.id,
+            name: device.name,
+            label: device.label,
+            displayName: device.displayName,
+            deviceNetworkId: device.deviceNetworkId,
+            type: deviceService.getDeviceHandler(device.deviceHandlerId)?.name,
+          };
 
-        deviceListData.push(devData);
+          deviceListData.push(devData);
+        }
       });
     }
 
@@ -41,7 +88,6 @@ module.exports = function (
   // add device
   router.post("/", (req: Request, res: Response) => {
     let deviceParams = req.body;
-    console.log("deviceParams", deviceParams);
 
     let d: Device = new Device();
     //handle integration

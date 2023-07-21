@@ -23,7 +23,7 @@ module.exports = function (
   app.use("/api/location", require("./location")(locationService));
   app.use(
     "/api/installed-smart-apps",
-    require("./installed-smart-apps")(smartAppService)
+    require("./installed-smart-apps")(smartAppService, entityService)
   );
   app.use(
     "/api/smart-apps",
