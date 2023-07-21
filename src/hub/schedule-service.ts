@@ -40,10 +40,6 @@ export class ScheduleService {
     handlerMethod: string,
     options: any
   ) {
-    console.log(
-      `${new Date().toLocaleString()} runIn ${delayInSeconds} ${entityType} ${entityId} ${handlerMethod}`
-    );
-
     let jobKey: string;
     if (options?.overwrite === false) {
       jobKey = `runOnce_${entityType}_${entityId}_${handlerMethod}_${randomUUID()}`;
@@ -63,10 +59,6 @@ export class ScheduleService {
       scheduleService: ScheduleService
     ) {
       try {
-        console.log(
-          `${new Date().toLocaleString()} running runIn ${delayInSeconds} ${entityType} ${entityId} ${handlerMethod}`
-        );
-        console.log("entityService:", entityService != null);
         if (entityType === "SMARTAPP") {
           entityService.runSmartAppMethod(
             entityId,
@@ -80,7 +72,7 @@ export class ScheduleService {
         // delete job
         scheduleService.deleteJob(jobKey);
       } catch (err) {
-        console.log("error with scheduled runIn", err);
+        logger.warn("error with scheduled runIn", err);
       }
     }.bind(null, this._entityService, this);
 
