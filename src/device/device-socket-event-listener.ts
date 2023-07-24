@@ -1,4 +1,4 @@
-import { Event } from "../entity/models/event";
+import { ParrotEvent } from "../entity/models/event";
 import { EventListener } from "../entity/event-listener";
 export class DeviceSocketEventListener implements EventListener {
   private _deviceId: string;
@@ -17,7 +17,7 @@ export class DeviceSocketEventListener implements EventListener {
     this._registered = false;
   }
 
-  eventReceived(event: Event): void {
+  eventReceived(event: ParrotEvent): void {
     if (
       this._registered &&
       event != null &&

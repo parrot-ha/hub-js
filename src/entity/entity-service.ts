@@ -4,7 +4,7 @@ import { Subscription } from "./models/subscription";
 import { SmartAppDelegate } from "../smartApp/smart-app-delegate";
 import { DeviceService } from "../device/device-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
-import { Event } from "./models/event";
+import { ParrotEvent } from "./models/event";
 import { SmartApp, SmartAppType } from "../smartApp/models/smart-app";
 import { Device } from "../device/models/device";
 import { DeviceHandler } from "../device/models/device-handler";
@@ -45,13 +45,13 @@ export class EntityService {
       return;
     }
 
-    let event: Event = new Event(properties);
+    let event: ParrotEvent = new ParrotEvent(properties);
     event.source = "DEVICE";
     event.sourceId = deviceId;
     this.processEvent(event);
   }
 
-  private processEvent(event: Event): void {
+  private processEvent(event: ParrotEvent): void {
     console.log("process event!", event);
     // skip any events that have a null name
     if (event.name == null) {
@@ -93,7 +93,7 @@ export class EntityService {
     this._eventListeners.delete(eventListener);
   }
 
-  private notifyEventListeners(event: Event): void {
+  private notifyEventListeners(event: ParrotEvent): void {
     if (this._eventListeners.size > 0) {
       this._eventListeners.forEach((eventListener) => {
         new Promise<void>((resolve) => {

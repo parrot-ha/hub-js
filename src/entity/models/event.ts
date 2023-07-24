@@ -1,6 +1,6 @@
 import * as crypto from "crypto";
 
-export class Event {
+export class ParrotEvent {
   id: string;
   name: string | undefined;
   value: string | undefined;

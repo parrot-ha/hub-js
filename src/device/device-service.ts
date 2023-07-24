@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import { DeviceHandler, DeviceHandlerType } from "./models/device-handler";
 import { Device } from "./models/device";
-import { Event } from "../entity/models/event";
+import { ParrotEvent } from "../entity/models/event";
 import { DeviceMetadataDelegate } from "./device-metadata-delegate";
 import { DeviceDataStore } from "./device-data-store";
 import { DeviceSetting } from "./models/device-setting";
@@ -227,7 +227,7 @@ export class DeviceService {
     return deviceHandlerInfo;
   }
 
-  updateDeviceState(event: Event): void {
+  updateDeviceState(event: ParrotEvent): void {
     let d: Device = this._deviceDataStore.getDevice(event.sourceId);
     let s: State = new State(event.name, event.value, event.unit);
     d.setCurrentState(s);

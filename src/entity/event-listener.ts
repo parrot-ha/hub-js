@@ -1,5 +1,5 @@
-import { Event } from "./models/event";
+import { ParrotEvent } from "./models/event";
 
 export interface EventListener {
-  eventReceived(event: Event): void;
+  eventReceived(event: ParrotEvent): void;
 }
