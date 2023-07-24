@@ -1,6 +1,8 @@
 import {
   createStandardPage,
   createStandardInput,
+  createLabel,
+  createMode,
 } from "../entity/entity-preferences-helper";
 
 export class SmartAppMetadataDelegate {
@@ -35,25 +37,10 @@ export class SmartAppMetadataDelegate {
     return this._sandboxMethods;
   }
 
-  public section(params: any, closure: Function) {
-    this.createTemporarySection();
-    if (params) {
-      for (const key in params) {
-        this.temporarySection[key] = params[key];
-      }
+  public definition(definitionInfo: any) {
+    if (this._includeDefinition) {
+      this.metadataValue.definition = definitionInfo;
     }
-
-    if (closure != null) {
-      closure();
-    }
-    this.addTemporarySection();
-  }
-
-  public input(params: any) {
-    this.createTemporarySection();
-    let tempInput: any = createStandardInput(params);
-    this.temporarySection.input.push(tempInput);
-    this.temporarySection.body.push(tempInput);
   }
 
   public preferences(closure: Function) {
@@ -63,16 +50,12 @@ export class SmartAppMetadataDelegate {
       this.addTemporarySection();
       if (this.singlePreferencesPage) {
         this.section({}, () => {
-          //TODO: create new section with default values (app name and modes)
+          // create new section with default values (app name and modes)
+          this.label({});
+          this.mode({});
         });
       }
       this.addTemporaryPage();
-    }
-  }
-
-  public definition(definitionInfo: any) {
-    if (this._includeDefinition) {
-      this.metadataValue.definition = definitionInfo;
     }
   }
 
@@ -93,17 +76,209 @@ export class SmartAppMetadataDelegate {
     return newDynamicPage;
   }
 
-  public page(params: any, closure: Function): void {
-    this.temporaryPage = createStandardPage();
-    for (let key of Object.keys(params)) {
-      this.temporaryPage[key] = params[key];
+  //ST allowed:
+  // page "name"
+  // page "name", "title"
+  // page name: "name", title: "title", ...
+  // page name: "name", title: "title", ..., Closure to run
+  // Parrot allows:
+  // page("name")
+  // page("name", "title")
+  // page({name: "name", title: "title", ...})
+  // page({name: "name", title: "title", ...}, Function to run)
+  public page(param1: any, param2: any): void {
+    if (!param1 && !param2) {
+      throw new Error("No parameters passed to page() function");
     }
+    // if param2 is a function, then param1 must be an object
+    if(typeof param2 === "function" && typeof param1 !== "object") {
+      throw new Error("Invalid arguments passed to page() function");
+    }
+    this.temporaryPage = createStandardPage();
 
-    if (closure != null) {
-      closure();
+    if (typeof param1 === "string") {
+      this.temporaryPage.name = param1;
+    } else if (typeof param1 === "object") {
+      for (let key of Object.keys(param1)) {
+        this.temporaryPage[key] = param1[key];
+      }
+      if (param2 != null && typeof param2 === "function") {
+        param2();
+      } else {
+        //dynamic page
+        if (!this.temporaryPage.content) {
+          this.temporaryPage.content = this.temporaryPage.name;
+        }
+      }
+    }
+    if (typeof param2 === "string") {
+      this.temporaryPage.title = param2;
     }
 
     this.addTemporaryPage();
+  }
+
+  // ST allowed:
+  // section("title") {closure}
+  // section {closure}
+  // section([title: "my title"]) {closure}
+  // Parrot allows:
+  // section("title", functionToRun)
+  // section({title: "my title"}, functionToRun)
+  // section(functionToRun)
+  public section(param1: any, param2: any) {
+    this.createTemporarySection();
+    if (typeof param1 === "string") {
+      this.temporarySection.title = param1;
+      if (typeof param2 === "function") {
+        param2();
+      }
+    } else if (typeof param1 === "function") {
+      param1();
+    } else if (typeof param1 === "object") {
+      for (const key in param1) {
+        this.temporarySection[key] = param1[key];
+      }
+      if (typeof param2 === "function") {
+        param2();
+      }
+    }
+
+    this.addTemporarySection();
+  }
+
+  //ST Allowed:
+  // input "name", "type", required: true, ...
+  // input name: "name", type: "text", ...
+  // parrot allows:
+  // input("name", "type", {required: true ...});
+  // input({name: "name", type: "type", required: true ...});
+  public input(param1: any, param2: any, param3: any) {
+    this.createTemporarySection();
+    let tempInput: any;
+
+    if (typeof param1 === "string" && typeof param2 === "string") {
+      if (param3 && typeof param3 === "object") {
+        param3.name = param1;
+        param3.type = param2;
+      } else {
+        param3 = { name: param1, type: param2 };
+      }
+      tempInput = createStandardInput(param3);
+    } else if (typeof param1 === "object") {
+      tempInput = createStandardInput(param1);
+    } else {
+      tempInput = createStandardInput({});
+    }
+    this.temporarySection.input.push(tempInput);
+    this.temporarySection.body.push(tempInput);
+  }
+
+  public label(params: any): void {
+    this.createTemporarySection();
+    let tempLabel: any = createLabel(params);
+    //only add label to body, not input since this is a special input type (app name)
+    this.temporarySection.body.push(tempLabel);
+  }
+
+  public mode(params: any): void {
+    this.createTemporarySection();
+    let tempMode: any = createMode(params);
+    //only add mode to body, not input since this is a special input type (app mode)
+    this.temporarySection.body.push(tempMode);
+  }
+
+  public app(params: any): void {
+    this.createTemporarySection();
+    // create a child app input with default values
+    let tempApp: any = {
+      element: "app",
+      type: "app",
+      multiple: false,
+      title: "",
+      name: "",
+    };
+
+    if (params) {
+      for (const key in params) {
+        tempApp[key] = params[key];
+      }
+    }
+
+    this.temporarySection.body.push(tempApp);
+  }
+
+  /**
+   * Create a paragraph item
+   * @param params Can be an object with various parameters or a string for just populating the description
+   */
+  // ST allowed:
+  // paragraph "description"
+  // paragraph "description", title: "my title", ...
+  // paragraph title: "my title", description: "my description" ...
+  // Parrot allows:
+  // paragraph("description")
+  // paragraph("description", {title: "my title", ...})
+  // paragraph({description: "description", title: "my title", ...})
+  public paragraph(param1: any, param2: any): void {
+    this.createTemporarySection();
+
+    // create a standard paragraph with default values
+    let tempParagraph: any = {
+      title: "",
+      description: "",
+      element: "paragraph",
+      type: "paragraph",
+      // defaults to false
+      required: false,
+      multiple: false,
+    };
+    if (typeof param1 === "string") {
+      tempParagraph.page = param1;
+    } else if (typeof param1 === "object") {
+      for (const key in param1) {
+        tempParagraph[key] = param1[key];
+      }
+    }
+
+    if (param2 && typeof param2 === "object") {
+      for (const key in param2) {
+        tempParagraph[key] = param2[key];
+      }
+    }
+    this.temporarySection.body.push(tempParagraph);
+  }
+
+  // ST allowed:
+  // href "pageName"
+  // href "pageName", name: "name", description: ...
+  // href name: "name", description: "description"...
+  public href(param1: any, param2: any): void {
+    this.createTemporarySection();
+
+    let tempHref: any = {
+      title: "Next Page",
+      description: "Tap to show",
+      element: "href",
+      external: false,
+      required: false,
+    };
+
+    if (typeof param1 === "string") {
+      tempHref.page = param1;
+    } else if (typeof param1 === "object") {
+      for (const key in param1) {
+        tempHref[key] = param1[key];
+      }
+    }
+
+    if (param2 && typeof param2 === "object") {
+      for (const key in param2) {
+        tempHref[key] = param2[key];
+      }
+    }
+
+    this.temporarySection.body.push(tempHref);
   }
 
   private createTemporarySection() {

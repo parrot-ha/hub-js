@@ -1,88 +1,47 @@
 import { Hub } from "./models/hub";
 import { Location } from "./models/location";
-import YAML from "yaml";
-import fs from "fs";
 import { randomUUID } from "crypto";
 import { Mode } from "./models/mode";
 import { toInteger } from "../utils/object-utils";
+import { LocationDataStore } from "./location-data-store";
 const SunCalc = require("suncalc");
 
 export class LocationService {
   _location: Location;
   _hub: Hub;
+  private _locationDataStore: LocationDataStore;
 
-  public get location(): Location {
-    if (this._location == null) {
-      this.loadLocation();
-    }
-    return this._location;
+  constructor(locationDataStore: LocationDataStore) {
+    this._locationDataStore = locationDataStore;
   }
 
-  public get hub(): Hub {
-    if (this._hub == null) {
-      this.loadHub();
+  public getLocation(): Location {
+    let location = this._locationDataStore.getLocation();
+    if (!location) {
+      location = this.createDefaultLocation();
+      this._locationDataStore.saveLocation(location);
     }
-    return this._hub;
+    return location;
   }
 
-  private loadLocation(): void {
-    try {
-      const locationConfig = fs.readFileSync(
-        "userData/config/location.yaml",
-        "utf-8"
-      );
-      if (locationConfig) {
-        let parsedFile = YAML.parse(locationConfig);
-        let location = new Location();
-        location.id = parsedFile.id;
-        location.temperatureScale = parsedFile.temperatureScale;
-        location.latitude = parsedFile.latitude;
-        location.longitude = parsedFile.longitude;
-        location.name = parsedFile.name;
-        location.zipCode = parsedFile.zipCode;
-        if (parsedFile.modes) {
-          location.modes = [];
-          parsedFile.modes.forEach((element: any) => {
-            location.modes.push(new Mode(element.id, element.name));
-          });
-          location.modes.forEach((mode: Mode) => {
-            if (mode.name === parsedFile.currentMode.name) {
-              location.currentMode = mode;
-            }
-          });
-        }
-        this._location = location;
-      } else {
-        this.createDefaultLocation();
-      }
-    } catch (err) {
-      console.log(err);
-      this.createDefaultLocation();
+  public getHub(): Hub {
+    let hub = this._locationDataStore.getHub();
+    if (!hub) {
+      hub = this.createDefaultHub();
+      this._locationDataStore.saveHub(hub);
     }
+    return hub;
   }
 
-  private loadHub(): void {
-    try {
-      const hubConfig = fs.readFileSync("userData/config/hub.yaml", "utf-8");
-      if (hubConfig) {
-        let parsedFile = YAML.parse(hubConfig);
-        let hub = new Hub();
-        hub.id = parsedFile.id;
-        hub.name = parsedFile.name;
-        hub.hardwareID = parsedFile.hardwareID;
-        hub.type = parsedFile.type;
-
-        this._hub = hub;
-      } else {
-        this.createDefaultHub();
-      }
-    } catch (err) {
-      console.log(err);
-      this.createDefaultHub();
-    }
+  public saveLocation(location: Location): void {
+    this._locationDataStore.saveLocation(location);
   }
 
-  private createDefaultLocation(): void {
+  public saveHub(hub: Hub): void {
+    this._locationDataStore.saveHub(hub);
+  }
+
+  private createDefaultLocation(): Location {
     let location: Location = new Location();
     location.id = randomUUID();
     location.temperatureScale = "F";
@@ -97,51 +56,17 @@ export class LocationService {
     modes.push(new Mode(randomUUID(), "Night"));
     modes.push(new Mode(randomUUID(), "Away"));
     location.modes = modes;
-    this._location = location;
-    this.saveLocation();
+    return location;
   }
 
-  private createDefaultHub(): void {
+  private createDefaultHub(): Hub {
     let hub: Hub = new Hub();
     hub.id = randomUUID();
-    hub.name = this.location.name;
+    hub.name = this.getLocation().name;
     hub.type = "PHYSICAL";
     hub.hardwareID = "UNKNOWN";
 
-    this._hub = hub;
-    this.saveHub();
-  }
-
-  public saveLocation(): boolean {
-    try {
-      fs.writeFile(
-        "userData/config/location.yaml",
-        YAML.stringify(this.location),
-        (err: any) => {
-          if (err) throw err;
-          console.log("location config file has been saved!");
-          return true;
-        }
-      );
-    } catch (err) {
-      console.log("error when saving location config file", err);
-    }
-    return false;
-  }
-
-  public saveHub(): void {
-    try {
-      fs.writeFile(
-        "userData/config/hub.yaml",
-        YAML.stringify(this.hub),
-        (err: any) => {
-          if (err) throw err;
-          console.log("hub config file has been saved!");
-        }
-      );
-    } catch (err) {
-      console.log("error when saving hub config file", err);
-    }
+    return hub;
   }
 
   public getSunriseAndSunset(options: any): { sunrise: Date; sunset: Date } {
@@ -151,9 +76,9 @@ export class LocationService {
     let sunriseOffset = toInteger(options?.sunriseOffset) || 0;
     let sunsetOffset = toInteger(options?.sunsetOffset) || 0;
 
-    if (latitude == null && longitude == null && this.location != null) {
-      latitude = this.location.latitude;
-      longitude = this.location.longitude;
+    if (latitude == null && longitude == null && this.getLocation() != null) {
+      latitude = this.getLocation().latitude;
+      longitude = this.getLocation().longitude;
     }
 
     let sunriseSunsetObj: { sunrise: Date; sunset: Date } = {

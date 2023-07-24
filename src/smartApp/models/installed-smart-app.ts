@@ -8,6 +8,7 @@ export class InstalledSmartApp {
   settings: InstalledSmartAppSetting[] | undefined;
   state: any;
   parentInstalledSmartAppId: string | undefined;
+  modes: string[]; // list of modes to run in
 
   // transient
   name: string;
@@ -44,6 +45,7 @@ export class InstalledSmartApp {
       settings: this.settings,
       state: this.state,
       parentInstalledSmartAppId: this.parentInstalledSmartAppId,
+      modes: this.modes,
     };
   }
 }

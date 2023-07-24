@@ -6,6 +6,7 @@ import { EventService } from "./event-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
 import { LocationService } from "./location-service";
 import { ScheduleService } from "./schedule-service";
+import { LocationFileDataStore } from "./location-file-data-store";
 
 export class ServiceFactory {
   private static _instance: ServiceFactory;
@@ -64,7 +65,7 @@ export class ServiceFactory {
 
   public getLocationService(): LocationService {
     if (!this._locationService) {
-      this._locationService = new LocationService();
+      this._locationService = new LocationService(new LocationFileDataStore());
     }
     return this._locationService;
   }
