@@ -17,7 +17,8 @@ require("./routes")(
   ServiceFactory.getInstance().getDeviceService(),
   ServiceFactory.getInstance().getSmartAppService(),
   ServiceFactory.getInstance().getEntityService(),
-  ServiceFactory.getInstance().getLocationService()
+  ServiceFactory.getInstance().getLocationService(),
+  ServiceFactory.getInstance().getIntegrationService()
 );
 
 const port = process.env.PORT || 6501;

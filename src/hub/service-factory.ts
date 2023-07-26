@@ -8,6 +8,7 @@ import { LocationService } from "./location-service";
 import { ScheduleService } from "./schedule-service";
 import { LocationFileDataStore } from "./location-file-data-store";
 import { IntegrationService } from "../integration/integration-service";
+import { IntegrationFileDataStore } from "../integration/integration-file-data-store";
 
 export class ServiceFactory {
   private static _instance: ServiceFactory;
@@ -84,7 +85,7 @@ export class ServiceFactory {
 
   public getIntegrationService(): IntegrationService {
     if (!this._integrationService) {
-      this._integrationService = new IntegrationService(
+      this._integrationService = new IntegrationService( new IntegrationFileDataStore(),
         this.getEntityService(),
         this.getDeviceService()
       );

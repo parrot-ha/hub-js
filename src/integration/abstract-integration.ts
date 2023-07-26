@@ -1,7 +1,7 @@
 import EventEmitter from "node:events";
 import { IntegrationEvent } from "./integration-events";
 import { IntegrationSetting } from "./models/integration-setting";
-import { IntegrationConfigurationService } from "./integration-configuration-service";
+import { IntegrationService } from "./integration-service";
 import { isBlank } from "../utils/string-utils";
 
 export abstract class AbstractIntegration extends EventEmitter {
@@ -14,12 +14,10 @@ export abstract class AbstractIntegration extends EventEmitter {
     this._id = value;
   }
 
-  private _integrationConfigurationService: IntegrationConfigurationService;
+  private _integrationService: IntegrationService;
 
-  public set integrationConfigurationService(
-    integrationConfigurationService: IntegrationConfigurationService
-  ) {
-    this._integrationConfigurationService = integrationConfigurationService;
+  public set integrationService(integrationService: IntegrationService) {
+    this._integrationService = integrationService;
   }
 
   public abstract start(): void;
@@ -30,7 +28,9 @@ export abstract class AbstractIntegration extends EventEmitter {
   }
 
   public getLabel(): string {
-    let label: string = this._integrationConfigurationService.getLabel(this.id);
+    let label: string = this._integrationService.getIntegrationConfigurationById(
+      this.id
+    ).label;
     return label || this.name;
   }
 
@@ -66,10 +66,7 @@ export abstract class AbstractIntegration extends EventEmitter {
 
   public getSettingAsString(key: string, defaultValue: string = null): string {
     let value: string =
-      this._integrationConfigurationService.getConfigurationValue(
-        this._id,
-        key
-      );
+      this._integrationService.getIntegrationConfigurationValue(this._id, key);
 
     if (defaultValue != null && isBlank(value)) {
       return defaultValue;
@@ -84,7 +81,7 @@ export abstract class AbstractIntegration extends EventEmitter {
     type: string,
     multiple: boolean
   ): void {
-    this._integrationConfigurationService.updateConfigurationValue(
+    this._integrationService.updateIntegrationSettingValue(
       this._id,
       key,
       value,
@@ -107,7 +104,7 @@ export abstract class AbstractIntegration extends EventEmitter {
   }
 
   public getSettings(): IntegrationSetting[] {
-    return this._integrationConfigurationService.getConfiguration(this.id);
+    return this._integrationService.getIntegrationSettings(this.id);
   }
 
   public processButtonAction(action: string): any {
