@@ -1,57 +1,97 @@
 import { Request, Response } from "express";
+import { IntegrationService } from "../../integration/integration-service";
+import { AbstractIntegration } from "../../integration/abstract-integration";
+import { DeviceIntegration } from "../../integration/device-integration";
 
 const express = require("express");
 
-module.exports = function () {
+module.exports = function (integrationService: IntegrationService) {
   const router = express.Router();
   router.get("/", (req: Request, res: Response) => {
-    //let integrationType: string = req.query.type;
+    let integrationType: string = req.query.type as string;
     let fields: string[] = null;
     if (Array.isArray(req.query.field)) {
       fields = req.query.field as string[];
     }
 
-    //Collection<IntegrationConfiguration> integrations = integrationService.getIntegrations();
+    let integrations = integrationService.getIntegrationConfigurations();
 
     if (fields?.length > 0) {
-      let integrationList: Map<string, any>[] = [];
-      // for (IntegrationConfiguration integration : integrations) {
-      //     AbstractIntegration abstractIntegration = integrationService.getIntegrationById(integration.getId());
-      //     if (integrationType == null || ("DEVICE".equals(integrationType) && abstractIntegration instanceof DeviceIntegration)) {
-      //         Map<String, Object> integrationMap = new HashMap<>();
-      //         for (String field : fields) {
-      //             switch (field) {
-      //                 case "id":
-      //                     integrationMap.put("id", integration.getId());
-      //                     break;
-      //                 case "name":
-      //                     integrationMap.put("name", integration.getName());
-      //                     break;
-      //                 case "label":
-      //                     integrationMap.put("label", integration.getLabel() != null ? integration.getLabel() : integration.getName());
-      //                     break;
-      //                 case "tags":
-      //                     integrationMap.put("tags",
-      //                             abstractIntegration != null ? ((DeviceIntegration) abstractIntegration).getTags() : new ArrayList<>());
-      //                 case "description":
-      //                     integrationMap.put("description",
-      //                             abstractIntegration != null ? abstractIntegration.getDescription() : "Not Found");
-      //             }
-      //         }
+      let integrationList: any[] = [];
+      integrations.forEach((integration) => {
+        let abstractIntegration: AbstractIntegration =
+          integrationService.getIntegrationById(integration.id);
+        if (
+          integrationType == null ||
+          ("DEVICE" === integrationType &&
+            abstractIntegration instanceof DeviceIntegration)
+        ) {
+          let integrationMap: any = {};
+          fields.forEach((field) => {
+            switch (field) {
+              case "id":
+                integrationMap.id = integration.id;
+                break;
+              case "name":
+                integrationMap.name = integration.name;
+                break;
+              case "label":
+                integrationMap.label = integration.label || integration.name;
+                break;
+              case "tags":
+                integrationMap.tags =
+                  abstractIntegration != null
+                    ? (abstractIntegration as DeviceIntegration).tags
+                    : [];
+              case "description":
+                integrationMap.description =
+                  abstractIntegration?.description || "Not Found";
+            }
+          });
 
-      //         integrationList.add(integrationMap);
-      //     }
-      // }
+          integrationList.push(integrationMap);
+        }
+      });
       res.json(integrationList);
     } else {
       let integrationList: Map<string, any>[] = [];
 
-      // for (IntegrationConfiguration integration : integrations) {
-      //     integrationList.add(integration.getDisplayValues());
-      // }
+      integrations.forEach((integration) => {
+        integrationList.push(integration.getDisplayValues());
+      });
 
       res.json(integrationList);
     }
+  });
+
+  router.post("/", (req: Request, res: Response) => {
+    //String body = ctx.body();
+    //Map bodyMap = (Map) (new JsonSlurper().parseText(body));
+    let bodyMap = req.body;
+    let integrationTypeId: string = bodyMap.id;
+
+    let integrationModel: any = {};
+    integrationModel.message = "";
+    let integrationId: string = "";
+
+    //ctx.status(200);
+    let status = 200;
+    try {
+      integrationId = integrationService.createIntegration(integrationTypeId);
+    } catch (err) {
+      //TODO: allow other error codes.
+      //ctx.status(500);
+      //res.status(500);
+      status = 500;
+      //TODO: return a descriptive message
+      integrationModel.message = "Error occurred: " + err.message;
+    }
+    integrationModel.id = integrationId;
+
+    // ctx.contentType("application/json");
+    // ctx.result(new JsonBuilder(integrationModel).toString());
+    //res.json(integrationModel);
+    res.status(status).json(integrationModel);
   });
 
   return router;

@@ -8,7 +8,7 @@ import { Protocol } from "../device/models/protocol";
 import { HubAction } from "../device/models/hub-action";
 const logger = require("../hub/logger-service")({ source: "LanIntegration" });
 
-export class LanIntegration extends DeviceIntegration {
+export default class LanIntegration extends DeviceIntegration {
   private _server: Server;
   private _serverPort: number;
 
