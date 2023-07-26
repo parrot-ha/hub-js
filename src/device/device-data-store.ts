@@ -4,7 +4,14 @@ import { Device } from "./models/device";
 export interface DeviceDataStore {
   getDevices(): Device[];
 
+  getDevicesByCapability(capability: string): Device[];
+
   getDevice(id: string): Device;
+
+  getDeviceByIntegrationAndDNI(
+    integrationId: string,
+    deviceNetworkId: string
+  ): Device;
 
   updateDevice(device: Device): void;
 

@@ -16,6 +16,9 @@ function createDirectories() {
   if (!fs.existsSync("userData/config/installedSmartApps/")) {
     fs.mkdirSync("userData/config/installedSmartApps/");
   }
+  if (!fs.existsSync("userData/config/schedules/")) {
+    fs.mkdirSync("userData/config/schedules/");
+  }
   if (!fs.existsSync("userData/deviceHandlers/")) {
     fs.mkdirSync("userData/deviceHandlers/");
   }
@@ -31,6 +34,8 @@ export function setupSystem() {
   ServiceFactory.getInstance().getSmartAppService().initialize();
 
   ServiceFactory.getInstance().getScheduleService().initialize();
+
+  ServiceFactory.getInstance().getIntegrationService().initialize();
 }
 
 export function shutdownSystem(): Promise<any> {

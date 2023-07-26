@@ -8,6 +8,7 @@ export class InstalledSmartApp {
   settings: InstalledSmartAppSetting[] | undefined;
   state: any;
   parentInstalledSmartAppId: string | undefined;
+  modes: string[]; // list of modes to run in
 
   // transient
   name: string;
@@ -20,6 +21,21 @@ export class InstalledSmartApp {
     return this.label;
   }
 
+  public getSettingByName(name: string): InstalledSmartAppSetting {
+    if (this.settings) {
+      return this.settings.find((setting) => setting.name === name);
+    } else {
+      return null;
+    }
+  }
+
+  public addSetting(setting: InstalledSmartAppSetting): void {
+    if (this.settings == null) {
+      this.settings = [];
+    }
+    this.settings.push(setting);
+  }
+
   public toJSON() {
     return {
       id: this.id,
@@ -29,6 +45,7 @@ export class InstalledSmartApp {
       settings: this.settings,
       state: this.state,
       parentInstalledSmartAppId: this.parentInstalledSmartAppId,
+      modes: this.modes,
     };
   }
 }

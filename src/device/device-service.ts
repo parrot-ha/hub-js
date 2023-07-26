@@ -1,7 +1,7 @@
 import * as crypto from "crypto";
 import { DeviceHandler, DeviceHandlerType } from "./models/device-handler";
 import { Device } from "./models/device";
-import { Event } from "../entity/models/event";
+import { ParrotEvent } from "../entity/models/event";
 import { DeviceMetadataDelegate } from "./device-metadata-delegate";
 import { DeviceDataStore } from "./device-data-store";
 import { DeviceSetting } from "./models/device-setting";
@@ -21,20 +21,96 @@ export class DeviceService {
     this._deviceDataStore = deviceDataStore;
   }
 
-  public getDeviceHandlers() {
+  public getDeviceHandlers(): DeviceHandler[] {
     return this._deviceDataStore.getDeviceHandlers();
   }
 
-  public getDevices() {
+  public getDevices(): Device[] {
     return this._deviceDataStore.getDevices();
   }
 
-  public getDevice(id: string) {
+  public getDevice(id: string): Device {
     return this._deviceDataStore.getDevice(id);
+  }
+
+  public getDeviceByIntegrationAndDNI(
+    integrationId: string,
+    deviceNetworkId: string
+  ): Device {
+    return this._deviceDataStore.getDeviceByIntegrationAndDNI(
+      integrationId,
+      deviceNetworkId
+    );
+  }
+
+  public deviceExists(
+    integrationId: string,
+    deviceNetworkId: string,
+    additionalIntegrationParameters: any = null
+  ): boolean {
+    if (additionalIntegrationParameters != null) {
+      if (deviceNetworkId != null) {
+        let device: Device = this.getDeviceByIntegrationAndDNI(
+          integrationId,
+          deviceNetworkId
+        );
+        if (device != null) {
+          // check additional integration options
+          return this.deviceMatchesIntegrationParameters(
+            device,
+            additionalIntegrationParameters
+          );
+        }
+      } else {
+        for (let device of this.getDevices()) {
+          if (
+            device.integration?.id === integrationId &&
+            this.deviceMatchesIntegrationParameters(
+              device,
+              additionalIntegrationParameters
+            )
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } else {
+      return (
+        this.getDeviceByIntegrationAndDNI(integrationId, deviceNetworkId) !=
+        null
+      );
+    }
+  }
+
+  protected deviceMatchesIntegrationParameters(
+    device: Device,
+    additionalIntegrationParameters: any
+  ): boolean {
+    if (device != null && device.integration != null) {
+      //check additional integration options
+      if (additionalIntegrationParameters != null) {
+        for (let key of Object.keys(additionalIntegrationParameters)) {
+          let option: any = additionalIntegrationParameters.get(key);
+          if (option == null && device.integration.options[key] != null) {
+            return false;
+          }
+          if (option != null && option !== device.integration.options[key]) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
   public getDeviceHandler(id: string) {
     return this._deviceDataStore.getDeviceHandler(id);
+  }
+
+  public getDevicesByCapability(capability: string): Device[] {
+    return this._deviceDataStore.getDevicesByCapability(capability);
   }
 
   public addDevice(device: Device) {
@@ -223,7 +299,7 @@ export class DeviceService {
     return deviceHandlerInfo;
   }
 
-  updateDeviceState(event: Event): void {
+  updateDeviceState(event: ParrotEvent): void {
     let d: Device = this._deviceDataStore.getDevice(event.sourceId);
     let s: State = new State(event.name, event.value, event.unit);
     d.setCurrentState(s);

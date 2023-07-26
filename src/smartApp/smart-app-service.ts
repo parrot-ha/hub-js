@@ -1,16 +1,15 @@
 import * as crypto from "crypto";
 import { InstalledSmartApp } from "./models/installed-smart-app";
+import { InstalledSmartAppSetting } from "./models/installed-smart-app-setting";
 import { SmartApp, SmartAppType } from "./models/smart-app";
-import YAML from "yaml";
 import { SmartAppMetadataDelegate } from "./smart-app-metadata-delegate";
 import { SmartAppDataStore } from "./smart-app-data-store";
 import { SmartAppInUseError } from "./errors/smart-app-in-use-error";
 import { difference } from "../utils/object-utils";
 import { EntityLogger } from "../entity/entity-logger-service";
-const logger = require("../services/logger-service")({ source: "SmartAppService" });
+const logger = require("../hub/logger-service")({ source: "SmartAppService" });
 
 const fs = require("fs");
-const path = require("path");
 const vm = require("vm");
 
 export class SmartAppService {
@@ -61,6 +60,12 @@ export class SmartAppService {
 
   public deleteInstalledSmartApp(installedSmartAppId: string): boolean {
     return this._smartAppDataStore.deleteInstalledSmartApp(installedSmartAppId);
+  }
+
+  public updateInstalledSmartApp(
+    installedSmartApp: InstalledSmartApp
+  ): boolean {
+    return this._smartAppDataStore.updateInstalledSmartApp(installedSmartApp);
   }
 
   public updateInstalledSmartAppState(
@@ -158,6 +163,34 @@ export class SmartAppService {
     }
   }
 
+  public updateInstalledSmartAppSettings(id: string, settingsMap: any): void {
+    let isa: InstalledSmartApp = this.getInstalledSmartApp(id);
+    for (let key in settingsMap) {
+      let setting = settingsMap[key];
+      let isaSetting: InstalledSmartAppSetting = isa.getSettingByName(key);
+      if (isaSetting != null) {
+        // update existing setting
+        isaSetting.processValueTypeAndMultiple(
+          setting.value,
+          setting.type,
+          setting.multiple
+        );
+      } else {
+        // create new setting
+        isaSetting = new InstalledSmartAppSetting();
+        isaSetting.id = crypto.randomUUID();
+        isaSetting.name = key;
+        isaSetting.processValueTypeAndMultiple(
+          setting.value,
+          setting.type,
+          setting.multiple
+        );
+        isa.addSetting(isaSetting);
+      }
+    }
+    this._smartAppDataStore.updateInstalledSmartApp(isa);
+  }
+
   public reprocessSmartApps(): void {
     //TODO: run this process in the background, allows quicker start up of system at the
     // expense of system starting up with possibly old smart app definition, however
@@ -212,21 +245,6 @@ export class SmartAppService {
     }
   }
 
-  private saveInstalledSmartApps() {
-    this.getInstalledSmartApps().forEach((isa: InstalledSmartApp) => {
-      fs.writeFile(
-        `userData/config/installedSmartApps/${isa.id}.yaml`,
-        YAML.stringify(isa),
-        (err: any) => {
-          if (err) throw err;
-          logger.debug(
-            `The installed smart app file ${isa.id} has been saved!`
-          );
-        }
-      );
-    });
-  }
-
   private processSmartAppInfo(): Map<string, SmartApp> {
     // we need to process smart apps
     let smartAppInfo: Map<string, SmartApp> = new Map<string, SmartApp>();
@@ -267,18 +285,37 @@ export class SmartAppService {
     return smartAppInfo;
   }
 
-  private processSmartAppSource(
-    fileName: string,
+  public getSmartAppPreferencesByInstalledSmartApp(
+    installedSmartAppId: string
+  ) {
+    let installedSmartApp: InstalledSmartApp =
+      this.getInstalledSmartApp(installedSmartAppId);
+
+    let sourceCode = this.getSmartAppSourceCode(installedSmartApp?.smartAppId);
+
+    return this.getSmartAppMetadata(
+      sourceCode,
+      `${installedSmartApp}.js`,
+      false,
+      true
+    )?.preferences;
+  }
+
+  private getSmartAppMetadata(
     sourceCode: string,
-    type: SmartAppType = SmartAppType.USER
-  ): SmartApp {
+    fileName: string,
+    includeDefinition?: boolean,
+    includePreferences?: boolean
+  ) {
     let smartAppMetadataDelegate: SmartAppMetadataDelegate =
-      new SmartAppMetadataDelegate();
+      new SmartAppMetadataDelegate(includeDefinition, includePreferences);
     let sandbox = this.buildMetadataContext(smartAppMetadataDelegate);
 
     try {
       vm.createContext(sandbox);
-      vm.runInContext(sourceCode, sandbox, { filename: fileName });
+      vm.runInContext(sourceCode, sandbox, {
+        filename: fileName,
+      });
     } catch (err) {
       if (err.stack.includes("SyntaxError:")) {
         // problem with the code
@@ -296,9 +333,19 @@ export class SmartAppService {
       throw err;
     }
 
+    return smartAppMetadataDelegate.metadataValue;
+  }
+
+  private processSmartAppSource(
+    fileName: string,
+    sourceCode: string,
+    type: SmartAppType = SmartAppType.USER
+  ): SmartApp {
+    let metadataValue = this.getSmartAppMetadata(sourceCode, fileName);
+
     let smartApp = new SmartApp();
-    if (smartAppMetadataDelegate.metadataValue?.definition) {
-      let definition = smartAppMetadataDelegate.metadataValue.definition;
+    if (metadataValue?.definition) {
+      let definition = metadataValue.definition;
       if (definition.smartAppId) {
         smartApp.id = definition.smartAppId;
       } else {

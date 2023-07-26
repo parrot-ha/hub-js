@@ -9,7 +9,7 @@ definition({
   smartAppId: "19c15ad0-f063-47db-852b-be54fb136e0e",
 });
 
-function preferences() {
+preferences(() => {
   page({ name: "mainPage", install: true, uninstall: true }, () => {
     section({ title: "Select switches to control" }, () => {
       input({
@@ -52,7 +52,7 @@ function preferences() {
       });
     });
   });
-}
+});
 
 // preferences {
 //     page(name: "mainPage", install: true, uninstall: true) {
@@ -89,11 +89,6 @@ function updated() {
 function initialize() {
   log.debug("initialize");
   subscribe(settings.contacts, "contact", contactSensorEvent);
-  settings.contacts.forEach((contactSensor) => {
-    log.debug(contactSensor.id);
-    log.debug(contactSensor.name);
-    contactSensor.open();
-  });
 }
 
 function contactSensorEvent(evt) {

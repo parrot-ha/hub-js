@@ -7,7 +7,7 @@ import YAML from "yaml";
 import fs from "fs";
 import { randomUUID } from "crypto";
 
-const logger = require("../services/logger-service")({
+const logger = require("../hub/logger-service")({
   source: "SmartAppFileDataStore",
 });
 
@@ -232,7 +232,6 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
           isaYaml,
           (err: any) => {
             if (err) throw err;
-            logger.debug("installed smart app file has been saved!");
           }
         );
         return true;
@@ -318,11 +317,10 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     this.saveSmartApps();
     return true;
   }
+
   getSmartAppSourceCode(id: string): string {
     let smartApp: SmartApp = this.getSmartApp(id);
-    if (smartApp?.type == SmartAppType.USER) {
-      return fs.readFileSync(smartApp.file)?.toString();
-    }
+    return fs.readFileSync(smartApp.file)?.toString();
   }
 
   public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {

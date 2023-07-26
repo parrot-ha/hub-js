@@ -14,20 +14,20 @@ module.exports = function (locationService: LocationService) {
 
     //TODO: validate these values
     if (jsonBodyObj != null && Object.keys(jsonBodyObj).length > 0) {
-      let location: Location = locationService.location;
+      let location: Location = locationService.getLocation();
       location.name = jsonBodyObj.name;
       location.temperatureScale = jsonBodyObj.temperatureScale;
       location.zipCode = jsonBodyObj.zipCode;
       location.latitude = jsonBodyObj.latitude;
       location.longitude = jsonBodyObj.longitude;
       location.modeId = jsonBodyObj.currentMode.id;
-      locationSaved = locationService.saveLocation();
+      locationService.saveLocation(location);
     }
-    res.json({ success: locationSaved });
+    res.json({ success: true });
   });
 
   router.get("/", (req: Request, res: Response) => {
-    let location: Location = locationService.location;
+    let location: Location = locationService.getLocation();
     let model = {
       id: location.id,
       name: location.name,
@@ -47,7 +47,7 @@ module.exports = function (locationService: LocationService) {
   });
 
   router.get("/hub", (req: Request, res: Response) => {
-    let hub: Hub = locationService.hub;
+    let hub: Hub = locationService.getHub();
     let version = process.env.npm_package_version || 'unknown';
     res.json({ id: hub.id, name: hub.name, version: version });
   });

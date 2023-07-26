@@ -1,4 +1,4 @@
-import { Event } from "../entity/models/event";
+import { ParrotEvent } from "../entity/models/event";
 import { Subscription } from "../entity/models/subscription";
 import fs from "fs";
 import * as crypto from "crypto";
@@ -9,7 +9,7 @@ export class EventService {
   private _deviceToSubscriptionMap: Map<string, string[]>;
   private _locationToSubscriptionMap: Map<string, string[]>;
 
-  getSubscribedSmartApps(event: Event): Subscription[] {
+  getSubscribedSmartApps(event: ParrotEvent): Subscription[] {
 
     let subscribedApps: Subscription[] = [];
 
@@ -59,7 +59,7 @@ export class EventService {
     return subscribedApps;
   }
 
-  saveEvent(event: Event): void {
+  saveEvent(event: ParrotEvent): void {
     //TODO: save event in database
   }
 

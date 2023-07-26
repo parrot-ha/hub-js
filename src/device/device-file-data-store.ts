@@ -4,7 +4,8 @@ import { DeviceDataStore } from "./device-data-store";
 import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
-const logger = require("../services/logger-service")({
+import { isBlank, deleteWhitespace } from "../utils/string-utils";
+const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
 
@@ -17,8 +18,49 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return Array.from(this.getDeviceCache().values());
   }
 
+  getDevicesByCapability(capability: string): Device[] {
+    let devices: Device[] = [];
+    if (isBlank(capability)) {
+      return devices;
+    }
+    capability = capability.toLowerCase();
+    this.getDevices()?.forEach((device) => {
+      let deviceHandler: DeviceHandler = this.getDeviceHandler(
+        device.deviceHandlerId
+      );
+      if (deviceHandler != null) {
+        let capabilityList: string[] = deviceHandler.capabilityList;
+        if (capabilityList != null) {
+          capabilityList.forEach((deviceCapability) => {
+            if (
+              capability === deleteWhitespace(deviceCapability)?.toLowerCase()
+            ) {
+              devices.push(device);
+            }
+          });
+        }
+      }
+    });
+
+    return devices;
+  }
+
   public getDevice(id: string): Device {
     return this.getDeviceCache().get(id);
+  }
+
+  getDeviceByIntegrationAndDNI(
+    integrationId: string,
+    deviceNetworkId: string
+  ): Device {
+    let device: Device = this.getDeviceCache().get(
+      this.getDeviceDNItoIDMap().get(
+        (integrationId != null ? integrationId : "null") +
+          ":" +
+          deviceNetworkId.toUpperCase()
+      )
+    );
+    return device;
   }
 
   public updateDevice(device: Device): void {
@@ -162,7 +204,6 @@ export class DeviceFileDataStore implements DeviceDataStore {
         deviceYaml,
         (err: any) => {
           if (err) throw err;
-          logger.debug(`The device file ${device.id} has been saved!`);
         }
       );
     }
