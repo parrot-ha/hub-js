@@ -34,6 +34,8 @@ export function setupSystem() {
   ServiceFactory.getInstance().getSmartAppService().initialize();
 
   ServiceFactory.getInstance().getScheduleService().initialize();
+
+  ServiceFactory.getInstance().getIntegrationService().initialize();
 }
 
 export function shutdownSystem(): Promise<any> {

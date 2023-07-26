@@ -49,6 +49,20 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return this.getDeviceCache().get(id);
   }
 
+  getDeviceByIntegrationAndDNI(
+    integrationId: string,
+    deviceNetworkId: string
+  ): Device {
+    let device: Device = this.getDeviceCache().get(
+      this.getDeviceDNItoIDMap().get(
+        (integrationId != null ? integrationId : "null") +
+          ":" +
+          deviceNetworkId.toUpperCase()
+      )
+    );
+    return device;
+  }
+
   public updateDevice(device: Device): void {
     let existingDevice: Device = this.getDevice(device.id);
     if (existingDevice != null) {

@@ -14,18 +14,17 @@ import { DeviceWrapper } from "../device/models/device-wrapper";
 import { DeviceSetting } from "../device/models/device-setting";
 import { LocationService } from "../hub/location-service";
 import { EntityLogger } from "./entity-logger-service";
-import { EventListener } from "./event-listener";
 import { isEmpty } from "../utils/string-utils";
+import EventEmitter from "node:events";
 
 const fs = require("fs");
 const vm = require("vm");
 
-export class EntityService {
+export class EntityService extends EventEmitter {
   private deviceService: DeviceService;
   private smartAppService: SmartAppService;
   private eventService: EventService;
   private _locationService: LocationService;
-  private _eventListeners: Set<EventListener> = new Set<EventListener>();
 
   constructor(
     deviceService: DeviceService,
@@ -33,6 +32,7 @@ export class EntityService {
     eventService: EventService,
     locationService: LocationService
   ) {
+    super();
     this.deviceService = deviceService;
     this.eventService = eventService;
     this.smartAppService = smartAppService;
@@ -48,6 +48,17 @@ export class EntityService {
     let event: ParrotEvent = new ParrotEvent(properties);
     event.source = "DEVICE";
     event.sourceId = deviceId;
+    this.processEvent(event);
+  }
+
+  public sendHubEvent(properties: any): void {
+    if (properties == null) {
+      return;
+    }
+    let event: ParrotEvent = new ParrotEvent(properties);
+    event.source = "HUB";
+    event.sourceId = this._locationService.getHub().id;
+
     this.processEvent(event);
   }
 
@@ -73,7 +84,7 @@ export class EntityService {
     }
 
     // notify any processes that are looking for events.
-    this.notifyEventListeners(event);
+    this.emit("event", event);
 
     subscriptions.forEach((subscription: Subscription) => {
       //TODO: create a worker pool for these
@@ -83,25 +94,6 @@ export class EntityService {
         [event]
       );
     });
-  }
-
-  public registerEventListener(eventListener: EventListener): void {
-    this._eventListeners.add(eventListener);
-  }
-
-  public unregisterEventListener(eventListener: EventListener): void {
-    this._eventListeners.delete(eventListener);
-  }
-
-  private notifyEventListeners(event: ParrotEvent): void {
-    if (this._eventListeners.size > 0) {
-      this._eventListeners.forEach((eventListener) => {
-        new Promise<void>((resolve) => {
-          eventListener.eventReceived(event);
-          resolve();
-        });
-      });
-    }
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
@@ -179,16 +171,17 @@ export class EntityService {
     });
   }
 
-  public  updateOrInstallInstalledSmartApp( id:string): void {
-    let installedSmartApp: InstalledSmartApp = this.smartAppService.getInstalledSmartApp(id);
+  public updateOrInstallInstalledSmartApp(id: string): void {
+    let installedSmartApp: InstalledSmartApp =
+      this.smartAppService.getInstalledSmartApp(id);
     if (installedSmartApp.installed) {
-        this.runSmartAppMethod(id, "updated", null);
+      this.runSmartAppMethod(id, "updated", null);
     } else {
-        installedSmartApp.installed = true;
-        this.smartAppService.updateInstalledSmartApp(installedSmartApp);
-        this.runSmartAppMethod(id, "installed", null);
+      installedSmartApp.installed = true;
+      this.smartAppService.updateInstalledSmartApp(installedSmartApp);
+      this.runSmartAppMethod(id, "installed", null);
     }
-}
+  }
 
   public getInstalledSmartAppConfigurationPage(
     id: string,
@@ -210,7 +203,9 @@ export class EntityService {
             return firstPage;
           }
         } else {
-          let page = (preferences.pageList as Array<any>).find((page) => pageName === page.name);
+          let page = (preferences.pageList as Array<any>).find(
+            (page) => pageName === page.name
+          );
           if (page) {
             if (page.content) {
               // this is a dynamic page, run method to get content
@@ -341,6 +336,21 @@ export class EntityService {
     return new Proxy(deviceWrapper, deviceWrapperHandler);
   }
 
+  public runDeviceMethodByDNI(
+    integrationId: string,
+    deviceNetworkId: string,
+    methodName: string,
+    args: any[]
+  ) {
+    let device: Device = this.deviceService.getDeviceByIntegrationAndDNI(
+      integrationId,
+      deviceNetworkId
+    );
+    if (device != null) {
+      this.runDeviceMethod(device.id, methodName, args);
+    }
+  }
+
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
     let device: Device = this.deviceService.getDevice(id);
     let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
@@ -364,8 +374,15 @@ export class EntityService {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
-    sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
-    sandbox["httpGet"] = deviceDelegate.httpGet;
+
+    // sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
+    // sandbox["httpGet"] = deviceDelegate.httpGet;
+    deviceDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
+      sandbox[sandboxMethod] = (deviceDelegate as any)[sandboxMethod].bind(
+        deviceDelegate
+      );
+    });
+
     sandbox["metadata"] = () => {};
     sandbox["device"] = this.buildDeviceWrapper(device);
 
@@ -410,10 +427,16 @@ export class EntityService {
     const data = fs.readFileSync(file);
 
     //TODO: can this context be saved and reused?
-    vm.createContext(context);
-    vm.runInContext(data.toString(), context, {
-      filename: `${entityName}.js`,
-    });
+    vm.createContext(context, {microtaskMode: "afterEvaluate"});
+    try {
+      vm.runInContext(data.toString(), context, {
+        filename: `${entityName}.js`,
+        microtaskMode: "afterEvaluate",
+        timeout: 20000, // timeout after 20 seconds
+      });
+    } catch (err) {
+      console.log("err with run entity method", err);
+    }
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
       try {

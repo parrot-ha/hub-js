@@ -8,6 +8,11 @@ export interface DeviceDataStore {
 
   getDevice(id: string): Device;
 
+  getDeviceByIntegrationAndDNI(
+    integrationId: string,
+    deviceNetworkId: string
+  ): Device;
+
   updateDevice(device: Device): void;
 
   deleteDevice(id: string): boolean;

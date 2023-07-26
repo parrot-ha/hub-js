@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { DeviceSocketEventListener } from "../device/device-socket-event-listener";
 import { EntityService } from "../entity/entity-service";
+import { ParrotEvent } from "../entity/models/event";
 
 module.exports = function (
   server: any,
@@ -12,7 +12,6 @@ module.exports = function (
   });
 
   server.on("upgrade", (request: any, socket: any, head: any) => {
-    console.log("upgrade");
     websocketServer.handleUpgrade(request, socket, head, (websocket) => {
       websocketServer.emit("connection", websocket, request, null);
     });
@@ -31,11 +30,25 @@ module.exports = function (
         "/api/devices/".length,
         _path.lastIndexOf("/events")
       );
-      let dsel: DeviceSocketEventListener = new DeviceSocketEventListener(
-        deviceId,
-        socket
-      );
-      entityService.registerEventListener(dsel);
+
+      let deviceEventListener = function (event: ParrotEvent): void {
+        if (
+          event != null &&
+          "DEVICE" == event.source &&
+          event.sourceId === this.deviceId
+        ) {
+          // process event
+          let eventMessage: string = JSON.stringify({
+            name: event.name,
+            value: event.value,
+            unit: event.unit,
+          });
+
+          this.webSocket.send(eventMessage);
+        }
+      }.bind({ deviceId: deviceId, webSocket: socket });
+
+      entityService.on("event", deviceEventListener);
 
       socket.on("message", (data: any, isBinary: boolean) => {
         console.log("message");
@@ -43,8 +56,8 @@ module.exports = function (
 
       socket.on("close", function close() {
         console.log("disconnected");
-        dsel.unregisterWS();
-        entityService.unregisterEventListener(dsel);
+        //dsel.unregisterWS();
+        entityService.off("event", deviceEventListener);
       });
     }
   );
