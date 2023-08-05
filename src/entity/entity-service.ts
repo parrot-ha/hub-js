@@ -16,14 +16,15 @@ import { LocationService } from "../hub/location-service";
 import { EntityLogger } from "./entity-logger-service";
 import { isEmpty } from "../utils/string-utils";
 import EventEmitter from "node:events";
+import { HubAction } from "../device/models/hub-action";
 
 const fs = require("fs");
 const vm = require("vm");
 
 export class EntityService extends EventEmitter {
-  private deviceService: DeviceService;
-  private smartAppService: SmartAppService;
-  private eventService: EventService;
+  private _deviceService: DeviceService;
+  private _smartAppService: SmartAppService;
+  private _eventService: EventService;
   private _locationService: LocationService;
 
   constructor(
@@ -33,9 +34,9 @@ export class EntityService extends EventEmitter {
     locationService: LocationService
   ) {
     super();
-    this.deviceService = deviceService;
-    this.eventService = eventService;
-    this.smartAppService = smartAppService;
+    this._deviceService = deviceService;
+    this._eventService = eventService;
+    this._smartAppService = smartAppService;
     this._locationService = locationService;
   }
 
@@ -70,16 +71,16 @@ export class EntityService extends EventEmitter {
     }
 
     let subscriptions: Subscription[] =
-      this.eventService.getSubscribedSmartApps(event);
+      this._eventService.getSubscribedSmartApps(event);
 
     if (
       (subscriptions != null && subscriptions.length > 0) ||
       event.isStateChange()
     ) {
       // save event in database
-      this.eventService.saveEvent(event);
+      this._eventService.saveEvent(event);
       if (event.source == "DEVICE") {
-        this.deviceService.updateDeviceState(event);
+        this._deviceService.updateDeviceState(event);
       }
     }
 
@@ -97,13 +98,13 @@ export class EntityService extends EventEmitter {
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
-    return this.deviceService.getDeviceHandlerPreferencesLayout(
+    return this._deviceService.getDeviceHandlerPreferencesLayout(
       deviceHandlerId
     );
   }
 
   public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
-    if (this.smartAppService.updateSmartAppSourceCode(id, sourceCode)) {
+    if (this._smartAppService.updateSmartAppSourceCode(id, sourceCode)) {
       //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
       //this.clearSmartAppScript(id);
       return true;
@@ -111,10 +112,31 @@ export class EntityService extends EventEmitter {
     return false;
   }
 
+  public updateDeviceHandlerSourceCode(
+    id: string,
+    sourceCode: string
+  ): boolean {
+    if (this._deviceService.updateDeviceHandlerSourceCode(id, sourceCode)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearDeviceHandlerScript(id);
+      return true;
+    }
+    return false;
+  }
+
   public removeSmartApp(id: string): boolean {
-    if (this.smartAppService.removeSmartApp(id)) {
+    if (this._smartAppService.removeSmartApp(id)) {
       //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
       //this.clearSmartAppScript(id);
+      return true;
+    }
+    return false;
+  }
+
+  public removeDeviceHandler(id: string): boolean {
+    if (this._deviceService.removeDeviceHandler(id)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearDeviceHandlerScript(id);
       return true;
     }
     return false;
@@ -128,8 +150,8 @@ export class EntityService extends EventEmitter {
     return new Promise((resolve, reject) => {
       try {
         let installedSmartApp: InstalledSmartApp =
-          this.smartAppService.getInstalledSmartApp(id);
-        let smartApp: SmartApp = this.smartAppService.getSmartApp(
+          this._smartAppService.getInstalledSmartApp(id);
+        let smartApp: SmartApp = this._smartAppService.getSmartApp(
           installedSmartApp.smartAppId
         );
         let retVal;
@@ -154,7 +176,7 @@ export class EntityService extends EventEmitter {
               retVal = myFunction.call(null, args);
             }
             //update state
-            this.smartAppService.updateInstalledSmartAppState(
+            this._smartAppService.updateInstalledSmartAppState(
               installedSmartApp.id,
               stateCopy,
               context.state
@@ -173,12 +195,12 @@ export class EntityService extends EventEmitter {
 
   public updateOrInstallInstalledSmartApp(id: string): void {
     let installedSmartApp: InstalledSmartApp =
-      this.smartAppService.getInstalledSmartApp(id);
+      this._smartAppService.getInstalledSmartApp(id);
     if (installedSmartApp.installed) {
       this.runSmartAppMethod(id, "updated", null);
     } else {
       installedSmartApp.installed = true;
-      this.smartAppService.updateInstalledSmartApp(installedSmartApp);
+      this._smartAppService.updateInstalledSmartApp(installedSmartApp);
       this.runSmartAppMethod(id, "installed", null);
     }
   }
@@ -189,7 +211,7 @@ export class EntityService extends EventEmitter {
   ): any {
     try {
       let preferences: any =
-        this.smartAppService.getSmartAppPreferencesByInstalledSmartApp(id);
+        this._smartAppService.getSmartAppPreferencesByInstalledSmartApp(id);
 
       if (preferences.pageList != null) {
         // multiple pages
@@ -246,7 +268,7 @@ export class EntityService extends EventEmitter {
     sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
-      this.eventService,
+      this._eventService,
       this._locationService
     );
 
@@ -268,7 +290,7 @@ export class EntityService extends EventEmitter {
     return {
       settingsCache: {},
       isaSettings: installedSmartApp.settings ? installedSmartApp.settings : [],
-      shDeviceService: this.deviceService,
+      shDeviceService: this._deviceService,
       shEntityService: this,
       get(target: any, prop: any): any {
         let settingLookupVal = this.settingsCache[prop];
@@ -313,7 +335,7 @@ export class EntityService extends EventEmitter {
   }
 
   protected buildDeviceWrapper(device: Device) {
-    let deviceWrapper = new DeviceWrapper(device, this.deviceService);
+    let deviceWrapper = new DeviceWrapper(device, this._deviceService);
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
@@ -342,7 +364,7 @@ export class EntityService extends EventEmitter {
     methodName: string,
     args: any[]
   ) {
-    let device: Device = this.deviceService.getDeviceByIntegrationAndDNI(
+    let device: Device = this._deviceService.getDeviceByIntegrationAndDNI(
       integrationId,
       deviceNetworkId
     );
@@ -352,19 +374,20 @@ export class EntityService extends EventEmitter {
   }
 
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
-    let device: Device = this.deviceService.getDevice(id);
-    let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
+    let device: Device = this._deviceService.getDevice(id);
+    let deviceHandler: DeviceHandler = this._deviceService.getDeviceHandler(
       device.deviceHandlerId
     );
     //TODO: check that method name is listed as a command
     try {
-      this.runEntityMethod(
+      let returnVal = this.runEntityMethod(
         deviceHandler.file,
         methodName,
         `deviceHandler_${deviceHandler.id}`,
         this.buildDeviceSandbox(device),
         args
       );
+      this._deviceService.processReturnObj(device, returnVal);
     } catch (err) {
       console.log("err with run device method", err);
     }
@@ -373,8 +396,13 @@ export class EntityService extends EventEmitter {
   private buildDeviceSandbox(device: Device): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
+    let deviceDelegate: DeviceDelegate = new DeviceDelegate(
+      device,
+      this,
+      this._deviceService
+    );
 
+    sandbox["HubAction"] = HubAction;
     // sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
     // sandbox["httpGet"] = deviceDelegate.httpGet;
     deviceDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
@@ -427,7 +455,7 @@ export class EntityService extends EventEmitter {
     const data = fs.readFileSync(file);
 
     //TODO: can this context be saved and reused?
-    vm.createContext(context, {microtaskMode: "afterEvaluate"});
+    vm.createContext(context, { microtaskMode: "afterEvaluate" });
     try {
       vm.runInContext(data.toString(), context, {
         filename: `${entityName}.js`,
@@ -440,11 +468,13 @@ export class EntityService extends EventEmitter {
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
       try {
+        let retVal;
         if (Array.isArray(args)) {
-          myFunction.call(null, ...args);
+          retVal = myFunction.call(null, ...args);
         } else {
-          myFunction.call(null, args);
+          retVal = myFunction.call(null, args);
         }
+        return retVal;
       } catch (err) {
         console.log(err);
       }

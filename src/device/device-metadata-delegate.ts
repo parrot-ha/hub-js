@@ -1,5 +1,6 @@
 import { CommandArgument } from "./models/command-argument";
 import { Command } from "./models/command";
+import { createStandardInput } from "../entity/entity-preferences-helper";
 
 export class DeviceMetadataDelegate {
   private _includeDefinition: boolean;
@@ -8,6 +9,7 @@ export class DeviceMetadataDelegate {
     "metadata",
     "definition",
     "preferences",
+    "section",
     "capability",
     "command",
     "input",
@@ -45,22 +47,23 @@ export class DeviceMetadataDelegate {
     this.addTemporarySection();
   }
 
-  public input(name: string, type: string, additionalOptions: any) {
+  public input(param1: any, param2: any, param3: any) {
     this.createTemporarySection();
-    console.log("input name", name, "type", type, "ao", additionalOptions);
     let tempInput: any;
-    if (additionalOptions) {
-      tempInput = additionalOptions;
-    } else {
-      tempInput = {};
-    }
-    if (additionalOptions) {
-      for (const key in additionalOptions) {
-        tempInput[key] = additionalOptions[key];
+
+    if (typeof param1 === "string" && typeof param2 === "string") {
+      if (param3 && typeof param3 === "object") {
+        param3.name = param1;
+        param3.type = param2;
+      } else {
+        param3 = { name: param1, type: param2 };
       }
+      tempInput = createStandardInput(param3);
+    } else if (typeof param1 === "object") {
+      tempInput = createStandardInput(param1);
+    } else {
+      tempInput = createStandardInput({});
     }
-    tempInput.name = name;
-    tempInput.type = type;
     this.temporarySection.input.push(tempInput);
     this.temporarySection.body.push(tempInput);
   }

@@ -13,11 +13,15 @@ export interface DeviceDataStore {
     deviceNetworkId: string
   ): Device;
 
+  getDevicesByDeviceHandler(deviceHandlerId: string): Device[];
+
   updateDevice(device: Device): void;
 
   deleteDevice(id: string): boolean;
 
   createDevice(device: Device): string;
+
+  getDeviceChildDevices(parentDeviceId: string): Device[];
 
   getDeviceHandlers(): DeviceHandler[];
 
@@ -27,5 +31,23 @@ export interface DeviceDataStore {
 
   createDeviceHandler(deviceHandler: DeviceHandler): void;
 
+  deleteDeviceHandler(id: string): boolean;
+
   getDeviceHandlerSources(): Map<string, string>;
+
+  getDeviceHandlerSourceCode(id: string): string;
+
+  updateDeviceHandlerSourceCode(id: string, sourceCode: string): boolean;
+
+  createDeviceHandlerSourceCode(
+    sourceCode: string,
+    deviceHandler: DeviceHandler
+  ): string;
+
+  getDeviceHandlerByNamespaceAndName(
+    namespace: string,
+    name: string
+  ): DeviceHandler;
+
+  getDeviceHandlerByName(name: string): DeviceHandler;
 }

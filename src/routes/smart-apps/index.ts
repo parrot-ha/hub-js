@@ -125,7 +125,7 @@ module.exports = function (
       let saId: string = smartAppService.addSmartAppSourceCode(sourceCode);
 
       if (saId != null) {
-        res.json({ success: true, saId: saId });
+        res.json({ success: true, id: saId });
       } else {
         res.json({ success: false, message: "Unable to save Smart App" });
       }

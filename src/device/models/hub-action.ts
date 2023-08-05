@@ -4,21 +4,42 @@ export class HubAction {
   private _action: string;
   private _dni: string;
   private _responseType: string; //used for z-wave to specify the command class and command response type
-  private _protocol: Protocol;
+  private _protocol: Protocol = Protocol.LAN;
   private _options: any;
 
+  private _params: any;
+
+  // HubAction(Map params, String dni = null, [Map options])
+  // HubAction(String action, Protocol protocol, String dni, Map options)
+  // HubAction(String action, Protocol protocol)
+  // HubAction(String action)
   constructor(
-    action: string,
-    protocol: Protocol = Protocol.OTHER,
-    options: any = {},
-    dni: string = null,
-    responseType: string = null
+    param1: any,
+    param2: any = null,
+    param3: any = null,
+    param4: any = null
   ) {
-    this._action = action;
-    this._protocol = protocol;
-    this._options = options;
-    this._dni = dni;
-    this._responseType = responseType;
+    if (typeof param1 === "string") {
+      this._action = param1;
+      if (param2) {
+        this._protocol = param2;
+      }
+      if (typeof param3 === "string") {
+        this._dni = param3;
+      }
+      if (typeof param4 === "object") {
+        this._options = param4;
+      }
+    } else if (typeof param1 === "object") {
+      this._params = param1;
+
+      if (typeof param2 === "string") {
+        this._dni = param2;
+      }
+      if (typeof param3 === "object") {
+        this._options = param3;
+      }
+    }
   }
 
   public get callback(): string {
@@ -61,6 +82,10 @@ export class HubAction {
   }
   public set options(value: any) {
     this._options = value;
+  }
+
+  public get params(): any {
+    return this._params;
   }
 
   public toString() {

@@ -6,15 +6,7 @@ export interface SmartAppDataStore {
 
   getInstalledSmartApp(id: string): InstalledSmartApp;
 
-  getSmartApps(): SmartApp[];
-
-  getSmartApp(id: string): SmartApp;
-
-  getSmartAppSources(): Map<string, string>;
-
-  updateSmartApp(smartApp: SmartApp): void;
-
-  createSmartApp(smartApp: SmartApp): void;
+  getInstalledSmartAppsByToken(token: string): string[];
 
   getInstalledSmartAppsByExtension(extensionId: string): InstalledSmartApp[];
 
@@ -28,20 +20,28 @@ export interface SmartAppDataStore {
 
   getInstalledSmartAppsBySmartApp(smartAppId: string): InstalledSmartApp[];
 
-  deleteSmartApp(id: string): boolean;
-
   updateInstalledSmartAppState(
     installedSmartAppId: string,
     state: any
   ): boolean;
+
+  getSmartApps(): SmartApp[];
+
+  getSmartApp(id: string): SmartApp;
+
+  updateSmartApp(smartApp: SmartApp): void;
+
+  createSmartApp(smartApp: SmartApp): void;
+
+  deleteSmartApp(id: string): boolean;
+
+  getSmartAppSources(): Map<string, string>;
 
   getSmartAppSourceCode(id: string): string;
 
   updateSmartAppSourceCode(id: string, sourceCode: string): boolean;
 
   createSmartAppSourceCode(sourceCode: string, smartApp: SmartApp): string;
-
-  getInstalledSmartAppsByToken(token: string): string[];
 
   getOAuthClientIdByToken(token: string): string;
 }

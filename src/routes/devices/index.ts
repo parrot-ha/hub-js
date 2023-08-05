@@ -7,6 +7,7 @@ import { Capability } from "../../device/models/capability";
 import { Capabilities } from "../../device/models/capabilities";
 import { DeviceSetting } from "../../device/models/device-setting";
 import { State } from "../../device/models/state";
+import { DeviceHandler } from "../../device/models/device-handler";
 
 const express = require("express");
 
@@ -139,7 +140,32 @@ module.exports = function (
   });
 
   router.get("/:id", (req: Request, res: Response) => {
-    res.json(deviceService.getDevice(req.params.id));
+    let id: string = req.params.id;
+    let basic: boolean = "true" === req.query.basic;
+    let device: Device = deviceService.getDevice(id);
+    if (!device) {
+      res.status(404).end();
+    } else {
+      let model: any = {
+        id: device.id,
+        name: device.name,
+        label: device.label,
+        integrationId: device.integration?.id,
+      };
+      if (!basic) {
+        let deviceHandler: DeviceHandler = deviceService.getDeviceHandler(
+          device.deviceHandlerId
+        );
+        if (deviceHandler) {
+          model.type = deviceHandler.name;
+        }
+        model.deviceHandlerId = device.deviceHandlerId;
+        model.deviceNetworkId = device.deviceNetworkId;
+        model.created = device.created;
+        model.updated = device.updated;
+      }
+      res.json(model);
+    }
   });
 
   // remove a device
@@ -226,7 +252,11 @@ module.exports = function (
     let id: string = req.params.id;
     let device: Device = deviceService.getDevice(id);
     let settings: Map<string, DeviceSetting> = device.getNameToSettingMap();
-    res.json(settings);
+    if (!settings) {
+      res.json({});
+    } else {
+      res.json(Object.fromEntries(settings));
+    }
   });
 
   router.get("/:id/states", (req: Request, res: Response) => {

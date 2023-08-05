@@ -12,12 +12,14 @@ import { IntegrationDataStore } from "./integration-data-store";
 import { AbstractIntegration } from "./abstract-integration";
 import { DeviceIntegration } from "./device-integration";
 import { isNotBlank } from "../utils/string-utils";
+import { IntegrationRegistry } from "./integration-registry";
 const logger = require("../hub/logger-service")({
   source: "IntegrationService",
 });
 
 export class IntegrationService {
   private _integrationDataStore: IntegrationDataStore;
+  private _integrationRegistry: IntegrationRegistry;
   private _entityService: EntityService;
   private _deviceService: DeviceService;
 
@@ -25,13 +27,16 @@ export class IntegrationService {
 
   private _integrationMap: Map<string, AbstractIntegration>;
   private _integrationTypeMap: Map<string, any>;
+  private _protocolListMap: Map<Protocol, String[]>;
 
   constructor(
     integrationDataStore: IntegrationDataStore,
+    integrationRegistry: IntegrationRegistry,
     entityService: EntityService,
     deviceService: DeviceService
   ) {
     this._integrationDataStore = integrationDataStore;
+    this._integrationRegistry = integrationRegistry;
     this._entityService = entityService;
     this._deviceService = deviceService;
   }
@@ -73,7 +78,7 @@ export class IntegrationService {
   }
 
   public initialize(): void {
-    this._integrationMap = new Map<string, AbstractIntegration>();
+    //this._integrationMap = new Map<string, AbstractIntegration>();
 
     // TODO: move to dynamic instead of hard coded Lan integration
     // const LanIntegration2 = import("../lan-integration/lan-integration").then(
@@ -100,7 +105,7 @@ export class IntegrationService {
           try {
             abstractIntegration.integrationService = this;
             this.initializeIntegration(abstractIntegration);
-            //integrationRegistry.registerIntegration(abstractIntegration);
+            this._integrationRegistry.registerIntegration(abstractIntegration);
             abstractIntegration.id = integrationId;
             abstractIntegration.start();
           } catch (err) {
@@ -124,8 +129,6 @@ export class IntegrationService {
       });
     }
     return Promise.all(promises);
-    // this._lanIntegration.off("event", this.eventReceived);
-    // return this._lanIntegration.stop();
   }
 
   public eventReceived(event: any): void {
@@ -149,11 +152,7 @@ export class IntegrationService {
   private lanDeviceMessageReceived(event: LanDeviceMessageEvent): void {
     // look for device based on mac address first
     if (
-      this._deviceService.deviceExists(
-        event.integrationId,
-        event.macAddress,
-        false
-      )
+      this._deviceService.deviceExists(event.integrationId, event.macAddress)
     ) {
       this._entityService.runDeviceMethodByDNI(
         event.integrationId,
@@ -168,7 +167,7 @@ export class IntegrationService {
     let ipAddressHexString: string = event.remoteAddress
       .split(".")
       .map((element) => parseInt(element).toString(16).padStart(2, "0"))
-      .join();
+      .join("");
 
     // next look for device based on ip address : port
     let ipAddressAndPortHexString: string =
@@ -176,8 +175,7 @@ export class IntegrationService {
     if (
       this._deviceService.deviceExists(
         event.integrationId,
-        ipAddressAndPortHexString,
-        false
+        ipAddressAndPortHexString
       )
     ) {
       this._entityService.runDeviceMethodByDNI(
@@ -191,11 +189,7 @@ export class IntegrationService {
 
     // look for device based on ip address
     if (
-      this._deviceService.deviceExists(
-        event.integrationId,
-        ipAddressHexString,
-        false
-      )
+      this._deviceService.deviceExists(event.integrationId, ipAddressHexString)
     ) {
       this._entityService.runDeviceMethodByDNI(
         event.integrationId,
@@ -209,13 +203,7 @@ export class IntegrationService {
     // look for device without integration id
 
     // look for device based on mac address first
-    if (
-      this._deviceService.deviceExists(
-        event.integrationId,
-        event.macAddress,
-        true
-      )
-    ) {
+    if (this._deviceService.deviceExists(null, event.macAddress)) {
       this._entityService.runDeviceMethodByDNI(
         null,
         event.macAddress,
@@ -226,13 +214,7 @@ export class IntegrationService {
     }
 
     // next look for device based on ip address : port
-    if (
-      this._deviceService.deviceExists(
-        event.integrationId,
-        ipAddressAndPortHexString,
-        true
-      )
-    ) {
+    if (this._deviceService.deviceExists(null, ipAddressAndPortHexString)) {
       this._entityService.runDeviceMethodByDNI(
         null,
         ipAddressAndPortHexString,
@@ -243,13 +225,7 @@ export class IntegrationService {
     }
 
     // look for device based on ip address
-    if (
-      this._deviceService.deviceExists(
-        event.integrationId,
-        ipAddressHexString,
-        true
-      )
-    ) {
+    if (this._deviceService.deviceExists(null, ipAddressHexString)) {
       this._entityService.runDeviceMethodByDNI(
         null,
         ipAddressHexString,
@@ -309,7 +285,7 @@ export class IntegrationService {
    */
 
   private getIntegrationMap(): Map<string, AbstractIntegration> {
-    if (this._integrationMap == null) {
+    if (this._integrationMap === null || this._integrationMap === undefined) {
       this.loadIntegrationMap();
     }
     return this._integrationMap;
@@ -320,22 +296,41 @@ export class IntegrationService {
       return;
     }
 
-    // Map<String, AbstractIntegration> temporaryIntegrationMap = new HashMap<>();
-    // Map<Protocol, List<String>> temporaryProtocolListMap = new HashMap<>();
+    let temporaryIntegrationMap: Map<string, AbstractIntegration> = new Map<
+      string,
+      AbstractIntegration
+    >();
+    let temporaryProtocolListMap: Map<Protocol, String[]> = new Map<
+      Protocol,
+      String[]
+    >();
 
-    // Collection<IntegrationConfiguration> integrationConfigurations = configurationService.getIntegrations();
-    // if (integrationConfigurations != null) {
-    //     for (IntegrationConfiguration integrationConfiguration : integrationConfigurations) {
-    //         AbstractIntegration abstractIntegration = getAbstractIntegrationFromConfiguration(integrationConfiguration);
-    //         if (abstractIntegration != null) {
-    //             temporaryIntegrationMap.put(integrationConfiguration.getId(), abstractIntegration);
-    //             temporaryProtocolListMap.computeIfAbsent(integrationConfiguration.getProtocol(), k -> new ArrayList<>())
-    //                     .add(integrationConfiguration.getId());
-    //         }
-    //     }
-    // }
-    // integrationMap = temporaryIntegrationMap;
-    // protocolListMap = temporaryProtocolListMap;
+    let integrationConfigurations =
+      this._integrationDataStore.getIntegrations();
+    if (integrationConfigurations != null) {
+      for (let integrationConfiguration of integrationConfigurations) {
+        let abstractIntegration = this.getAbstractIntegrationFromConfiguration(
+          integrationConfiguration
+        );
+        if (abstractIntegration != null) {
+          temporaryIntegrationMap.set(
+            integrationConfiguration.id,
+            abstractIntegration
+          );
+          let integrationIdArray = temporaryProtocolListMap.get(
+            integrationConfiguration.protocol
+          );
+          if (!integrationIdArray) integrationIdArray = [];
+          integrationIdArray.push(integrationConfiguration.id);
+          temporaryProtocolListMap.set(
+            integrationConfiguration.protocol,
+            integrationIdArray
+          );
+        }
+      }
+    }
+    this._integrationMap = temporaryIntegrationMap;
+    this._protocolListMap = temporaryProtocolListMap;
   }
 
   public getIntegrationById(id: string): AbstractIntegration {
@@ -424,7 +419,7 @@ export class IntegrationService {
 
     abstractIntegration.id = integrationId;
     this.initializeIntegration(abstractIntegration);
-    //integrationRegistry.registerIntegration(abstractIntegration);
+    this._integrationRegistry.registerIntegration(abstractIntegration);
 
     try {
       abstractIntegration.start();
