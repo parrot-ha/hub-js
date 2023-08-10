@@ -28,7 +28,7 @@ export abstract class AbstractIntegration extends EventEmitter {
     this.emit("event", integrationEvent);
   }
 
-  public getLabel(): string {
+  public get label(): string {
     let label: string =
       this._integrationService.getIntegrationConfigurationById(this.id).label;
     return label || this.name;

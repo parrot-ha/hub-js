@@ -44,5 +44,6 @@ export function shutdownSystem(): Promise<any> {
     .shutdown();
   let scheduleShutdownPromise =
     ServiceFactory.getInstance().getScheduleService().shutdown();
-  return Promise.all([deviceServiceShutdownPromise, scheduleShutdownPromise]);
+  let integrationShutdownPromise = ServiceFactory.getInstance().getIntegrationService().shutdown();
+  return Promise.all([deviceServiceShutdownPromise, scheduleShutdownPromise, integrationShutdownPromise]);
 }

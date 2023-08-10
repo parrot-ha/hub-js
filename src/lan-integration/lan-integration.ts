@@ -3,7 +3,7 @@ import { Server } from "http";
 import arp from "@network-utils/arp-lookup";
 import { DeviceIntegration } from "../integration/device-integration";
 import { LanDeviceMessageEvent } from "../integration/integration-events";
-import { PreferencesBuilder } from "../utils/preferences-builder";
+import { PreferencesBuilder } from "../integration/preferences-builder";
 import { Protocol } from "../device/models/protocol";
 import { HubAction } from "../device/models/hub-action";
 import { HubResponse } from "../device/models/hub-response";
