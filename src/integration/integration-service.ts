@@ -3,6 +3,7 @@ import { DeviceService } from "../device/device-service";
 import { EntityService } from "../entity/entity-service";
 import { IntegrationConfiguration } from "./models/integration-configuration";
 import {
+  DeviceAddedEvent,
   DeviceEvent,
   DeviceMessageEvent,
   LanDeviceMessageEvent,
@@ -16,6 +17,7 @@ import { IntegrationRegistry } from "./integration-registry";
 import { ResetIntegrationExtension } from "./reset-integration-extension";
 import { randomUUID } from "crypto";
 import { DeviceScanIntegrationExtension } from "./device-scan-integration-extension";
+import { Device } from "../device/models/device";
 const logger = require("../hub/logger-service")({
   source: "IntegrationService",
 });
@@ -114,6 +116,41 @@ export class IntegrationService {
             "parse",
             [event.message]
           );
+        }
+      } else if (event instanceof DeviceAddedEvent) {
+        // only add device if user initiated the addition, this could also mean that the user allowed the integration to automatically add devices
+        if (event?.isUserInitiatedAdd === true) {
+          let fingerprint = event.fingerprint;
+          let deviceHandlerInfo: string[] =
+            this._entityService.getDeviceHandlerByFingerprint(fingerprint);
+
+          if (deviceHandlerInfo != null) {
+            let deviceHandlerId: string = deviceHandlerInfo[0];
+            let deviceName: string = deviceHandlerInfo[1];
+            let d: Device = new Device();
+            //handle integration
+            d.integration.id = event.integrationId;
+            d.integration.options = event.additionalParameters;
+            d.data = event.data;
+            d.deviceNetworkId = event.deviceNetworkId;
+            d.name = deviceName;
+            d.deviceHandlerId = deviceHandlerId;
+
+            // let deviceId: string = this._deviceService.addDevice(event.integrationId, deviceHandlerId, deviceName,
+            //         event.deviceNetworkId, event.data, event.additionalParameters);
+            let deviceId = this._deviceService.addDevice(d);
+
+            let capabilityList: string[] = this._deviceService.getDeviceHandler(
+              this._deviceService.getDevice(deviceId).deviceHandlerId
+            ).capabilityList;
+            if (
+              capabilityList != null &&
+              capabilityList.indexOf("Configuration") > -1
+            ) {
+              this._entityService.runDeviceMethod(deviceId, "configure", null);
+            }
+            this._entityService.runDeviceMethod(deviceId, "installed", null);
+          }
         }
       }
     }
@@ -395,7 +432,6 @@ export class IntegrationService {
       abstractIntegration
     );
 
-
     abstractIntegration.id = integrationId;
     this.initializeIntegration(abstractIntegration);
     this._integrationRegistry.registerIntegration(abstractIntegration);
@@ -511,7 +547,7 @@ export class IntegrationService {
             (existingSetting.value != null && value == null) ||
             (existingSetting.value != null &&
               value != null &&
-              !existingSetting.value === value.toString())
+              existingSetting.value !== value.toString())
           ) {
             existingSetting.processValueTypeAndMultiple(
               setting["value"],

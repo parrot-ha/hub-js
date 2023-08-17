@@ -52,6 +52,43 @@ export class DeviceEvent extends IntegrationEvent {
     return this._event;
   }
 }
+export class DeviceAddedEvent extends DeviceEvent {
+  private _userInitiatedAdd: boolean;
+
+  constructor(
+    deviceNetworkId: string,
+    userInitiatedAdd: boolean,
+    fingerprint: Map<string, string>,
+    data: Map<string, any>,
+    parameters: Map<string, string>
+  ) {
+    super(
+      deviceNetworkId,
+      new Map<string, any>([
+        ["fingerprint", fingerprint],
+        ["data", data],
+        ["parameters", parameters],
+      ])
+    );
+    this._userInitiatedAdd = userInitiatedAdd;
+  }
+
+  public get isUserInitiatedAdd(): boolean {
+    return this._userInitiatedAdd;
+  }
+
+  public get fingerprint(): Map<string, string> {
+    return (this.event as Map<string, any>).get("fingerprint");
+  }
+
+  public get additionalParameters(): Map<string, string> {
+    return (this.event as Map<string, any>).get("parameters");
+  }
+
+  public get data(): Map<string, any> {
+    return (this.event as Map<string, any>).get("data");
+  }
+}
 
 export class DeviceMessageEvent extends DeviceEvent {
   constructor(deviceNetworkId: string, message: string) {

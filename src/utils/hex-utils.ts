@@ -27,7 +27,22 @@ export function hexStringToNumberArray(hexString: string): number[] {
   let data = new Array<number>(len / 2);
 
   for (let i = 0; i < len; i += 2) {
-    data[i / 2] = parseInt(hexString.substring(i, i + 1), 16);
+    data[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
   }
   return data;
+}
+
+export function numberToHexString(value: number, minBytes: number): string {
+  if (value === null || typeof value === 'undefined' || minBytes === null || typeof minBytes === 'undefined') {
+    throw new Error(
+      "Value to convert and minimum number of bytes must be defined."
+    );
+  }
+  if (minBytes <= 0) {
+    throw new Error("Minimum number of bytes must be greater than 0.");
+  }
+
+  return parseInt(value.toString())
+    .toString(16)
+    .padStart(minBytes * 2, "0");
 }

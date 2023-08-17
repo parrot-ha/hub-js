@@ -77,14 +77,14 @@ export abstract class AbstractIntegration extends EventEmitter {
 
   public updateSetting(
     key: string,
-    value: string,
+    value: any,
     type: string,
     multiple: boolean
   ): void {
     this._integrationService.updateIntegrationSettingValue(
       this._id,
       key,
-      value,
+      value ? value.toString() : null,
       type,
       multiple
     );
