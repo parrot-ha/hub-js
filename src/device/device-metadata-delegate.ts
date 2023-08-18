@@ -13,6 +13,7 @@ export class DeviceMetadataDelegate {
     "capability",
     "command",
     "input",
+    "fingerprint",
   ];
   metadataValue: any = {
     definition: {
@@ -36,6 +37,15 @@ export class DeviceMetadataDelegate {
 
   get sandboxMethods() {
     return this._sandboxMethods;
+  }
+
+  public fingerprint(value: any) {
+    let fingerprints = this.metadataValue.definition.fingerprints;
+    if (fingerprints == null) {
+      fingerprints = [];
+      this.metadataValue.definition.fingerprints = fingerprints;
+    }
+    fingerprints.push(value);
   }
 
   public section(title: string, closure: Function) {
@@ -108,7 +118,7 @@ export class DeviceMetadataDelegate {
       this.metadataValue.definition.attributes = [];
       this.metadataValue.definition.commands = [];
       this.metadataValue.definition.fingerprints = [];
-      closure();
+      if (closure) closure();
     }
   }
 

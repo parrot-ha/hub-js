@@ -104,7 +104,7 @@ export class IntegrationService {
   }
 
   public eventReceived(event: any): void {
-    console.log("got event", JSON.stringify(event));
+    logger.debug("got event: " + JSON.stringify(event));
     if (event instanceof DeviceEvent) {
       if (event instanceof DeviceMessageEvent) {
         if (event instanceof LanDeviceMessageEvent) {
@@ -121,12 +121,12 @@ export class IntegrationService {
         // only add device if user initiated the addition, this could also mean that the user allowed the integration to automatically add devices
         if (event?.isUserInitiatedAdd === true) {
           let fingerprint = event.fingerprint;
-          let deviceHandlerInfo: string[] =
+          let deviceHandlerInfo =
             this._entityService.getDeviceHandlerByFingerprint(fingerprint);
 
           if (deviceHandlerInfo != null) {
-            let deviceHandlerId: string = deviceHandlerInfo[0];
-            let deviceName: string = deviceHandlerInfo[1];
+            let deviceHandlerId: string = deviceHandlerInfo.id;
+            let deviceName: string = deviceHandlerInfo.joinName;
             let d: Device = new Device();
             //handle integration
             d.integration.id = event.integrationId;
@@ -136,8 +136,6 @@ export class IntegrationService {
             d.name = deviceName;
             d.deviceHandlerId = deviceHandlerId;
 
-            // let deviceId: string = this._deviceService.addDevice(event.integrationId, deviceHandlerId, deviceName,
-            //         event.deviceNetworkId, event.data, event.additionalParameters);
             let deviceId = this._deviceService.addDevice(d);
 
             let capabilityList: string[] = this._deviceService.getDeviceHandler(

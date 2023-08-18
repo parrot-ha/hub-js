@@ -30,7 +30,10 @@ export class DeviceService {
   private _deviceDataStore: DeviceDataStore;
   private _integrationRegistry: IntegrationRegistry;
 
-  public constructor(deviceDataStore: DeviceDataStore, integrationRegistry: IntegrationRegistry) {
+  public constructor(
+    deviceDataStore: DeviceDataStore,
+    integrationRegistry: IntegrationRegistry
+  ) {
     this._deviceDataStore = deviceDataStore;
     this._integrationRegistry = integrationRegistry;
   }
@@ -387,6 +390,23 @@ export class DeviceService {
     this._deviceDataStore.updateDevice(d);
   }
 
+  public getDeviceHandlerByNameAndNamespace(
+    name: string,
+    namespace: string
+  ): DeviceHandler {
+    for (let deviceHandler of this.getDeviceHandlers()) {
+      if (
+        deviceHandler.name != null &&
+        deviceHandler.name === name &&
+        deviceHandler.namespace != null &&
+        deviceHandler.namespace === namespace
+      ) {
+        return deviceHandler;
+      }
+    }
+    return null;
+  }
+
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
     let deviceHandler: DeviceHandler = this.getDeviceHandler(deviceHandlerId);
     if (deviceHandler) {
@@ -587,10 +607,7 @@ export class DeviceService {
     return sandbox;
   }
 
-  public processReturnObj(
-    device: Device,
-    retObj: any
-  ): void {
+  public processReturnObj(device: Device, retObj: any): void {
     if (retObj === null || retObj === undefined) {
       return;
     }
@@ -602,7 +619,7 @@ export class DeviceService {
       let integrationId: string = device.integration?.id;
       let hubAction: HubAction = retObj as HubAction;
       hubAction.dni = hubAction.dni ?? device.deviceNetworkId;
-      if(hubAction.options?.callback) {
+      if (hubAction.options?.callback) {
         hubAction.options.callbackEntityId = device.id;
         hubAction.options.callbackEntityType = "DEV";
       }
@@ -614,7 +631,11 @@ export class DeviceService {
     }
   }
 
-  private processArrayRetObj(device: Device, arrayRetObj: Array<any>, arrayRetObjIndex: number = 0) {
+  private processArrayRetObj(
+    device: Device,
+    arrayRetObj: Array<any>,
+    arrayRetObjIndex: number = 0
+  ) {
     if (arrayRetObjIndex < arrayRetObj.length) {
       let delay = 0;
       let obj = arrayRetObj[arrayRetObjIndex];
@@ -636,7 +657,13 @@ export class DeviceService {
       }
 
       if (delay > 0) {
-        setTimeout(this.processArrayRetObj, delay, device, arrayRetObj, arrayRetObjIndex++);
+        setTimeout(
+          this.processArrayRetObj,
+          delay,
+          device,
+          arrayRetObj,
+          arrayRetObjIndex++
+        );
       } else {
         this.processArrayRetObj(device, arrayRetObj, arrayRetObjIndex++);
       }

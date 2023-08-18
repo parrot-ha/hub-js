@@ -192,7 +192,8 @@ export default class ZigbeeIntegration
   }
 
   private zigbeeMessage(msg: MessagePayload) {
-    console.log("zigbee message", msg);
+    logger.debug("zigbee message type: " + msg.type);
+    if (msg.type != "commandQueryNextImageRequest") logger.debug(msg);
   }
 
   private deviceJoined(msg: DeviceJoinedPayload) {
@@ -295,6 +296,7 @@ export default class ZigbeeIntegration
         numberToHexString(zigBeeEndpoint.profileID, 2)
       );
 
+      //TODO: lookup manufactuer and model from device, right now it appears that this is empty.
       let manufacturer =
         zigBeeEndpoint.getClusterAttributeValue(0, 4)?.toString() || "0";
       fingerprint.set("manufacturer", manufacturer);
