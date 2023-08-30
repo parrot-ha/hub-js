@@ -464,7 +464,8 @@ export class DeviceFileDataStore implements DeviceDataStore {
         let parsedFile = YAML.parse(deviceHandlersConfigFile);
         if (parsedFile && Array.isArray(parsedFile)) {
           parsedFile.forEach((fileDH) => {
-            let deviceHandler: DeviceHandler = fileDH as DeviceHandler;
+            let deviceHandler: DeviceHandler =
+              DeviceHandler.buildFromObject(fileDH);
             deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
           });
         }

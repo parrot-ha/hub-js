@@ -130,8 +130,18 @@ export class IntegrationService {
             let d: Device = new Device();
             //handle integration
             d.integration.id = event.integrationId;
-            d.integration.options = event.additionalParameters;
-            d.data = event.data;
+            if (event.additionalParameters instanceof Map) {
+              d.integration.options = Object.fromEntries(
+                event.additionalParameters
+              );
+            } else {
+              d.integration.options = event.additionalParameters;
+            }
+            if (event.data instanceof Map) {
+              d.data = Object.fromEntries(event.data);
+            } else {
+              d.data = event.data;
+            }
             d.deviceNetworkId = event.deviceNetworkId;
             d.name = deviceName;
             d.deviceHandlerId = deviceHandlerId;

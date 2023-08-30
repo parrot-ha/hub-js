@@ -5,7 +5,7 @@ import { SmartAppDelegate } from "../smartApp/smart-app-delegate";
 import { DeviceService } from "../device/device-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
 import { ParrotEvent } from "./models/event";
-import { SmartApp, SmartAppType } from "../smartApp/models/smart-app";
+import { SmartApp } from "../smartApp/models/smart-app";
 import { Device } from "../device/models/device";
 import { DeviceHandler } from "../device/models/device-handler";
 import { InstalledSmartApp } from "../smartApp/models/installed-smart-app";
@@ -18,6 +18,7 @@ import { isEmpty, isNotBlank } from "../utils/string-utils";
 import EventEmitter from "node:events";
 import { HubAction } from "../device/models/hub-action";
 import { Fingerprint } from "../device/models/fingerprint";
+import { ZigBeeUtils } from "../utils/zigbee-utils";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -418,6 +419,9 @@ export class EntityService extends EventEmitter {
 
     sandbox["metadata"] = () => {};
     sandbox["device"] = this.buildDeviceWrapper(device);
+    sandbox["zigbee"] = new ZigBeeUtils(
+      new DeviceWrapper(device, this._deviceService)
+    );
 
     let settingsObject: any = {};
     let settingsHandler = this.buildDeviceSettingsHandler(device);
@@ -590,7 +594,10 @@ export class EntityService extends EventEmitter {
 
     if (isNotBlank(fingerprint.endpointId)) {
       fingerprintItemCount++;
-      if (fingerprint.endpointId === deviceInfo.get("endpointId")) {
+      if (
+        fingerprint.endpointId.toLowerCase() ===
+        deviceInfo.get("endpointId")?.toLowerCase()
+      ) {
         matchCount++;
         weight += 1;
       }
@@ -598,11 +605,15 @@ export class EntityService extends EventEmitter {
 
     if (isNotBlank(fingerprint.inClusters)) {
       fingerprintItemCount++;
-      if (fingerprint.inClusters === deviceInfo.get("inClusters")) {
+      if (
+        fingerprint.inClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
+      ) {
         matchCount++;
         weight += 2;
       } else if (
-        fingerprint.sortedInClusters === deviceInfo.get("inClusters")
+        fingerprint.sortedInClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
       ) {
         matchCount++;
         weight += 1;
@@ -611,11 +622,15 @@ export class EntityService extends EventEmitter {
 
     if (isNotBlank(fingerprint.outClusters)) {
       fingerprintItemCount++;
-      if (fingerprint.outClusters === deviceInfo.get("outClusters")) {
+      if (
+        fingerprint.outClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
+      ) {
         matchCount++;
         weight += 2;
       } else if (
-        fingerprint.sortedOutClusters === deviceInfo.get("outClusters")
+        fingerprint.sortedOutClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
       ) {
         matchCount++;
         weight += 1;

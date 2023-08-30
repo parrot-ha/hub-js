@@ -148,33 +148,23 @@ export class IntegrationRegistry {
     return null;
   }
 
-  // public boolean removeDevice(String integrationId, String deviceNetworkId, boolean force) {
-  //     DeviceIntegration deviceIntegration = getDeviceIntegrationById(integrationId);
-  //     if (deviceIntegration != null) {
-  //         try {
-  //             return deviceIntegration.removeIntegrationDevice(deviceNetworkId, force);
-  //         } catch (AbstractMethodError ame) {
-  //             return deviceIntegration.removeIntegrationDevice(deviceNetworkId);
-  //         }
-  //     } else {
-  //         logger.warn("Unknown integration: " + integrationId);
-  //         return true;
-  //     }
-  // }
-
-  // public Future<Boolean> removeDeviceAsync(String integrationId, String deviceNetworkId, boolean force) {
-  //     DeviceIntegration deviceIntegration = getDeviceIntegrationById(integrationId);
-  //     if (deviceIntegration != null) {
-  //         try {
-  //             return deviceIntegration.removeIntegrationDeviceAsync(deviceNetworkId, force);
-  //         } catch (AbstractMethodError ame) {
-  //             boolean removeDeviceResult = removeDevice(integrationId, deviceNetworkId, force);
-  //             return CompletableFuture.completedFuture(removeDeviceResult);
-  //         }
-  //     } else {
-  //         logger.warn("Unknown integration: " + integrationId);
-  //         // if integration does not exist, then device is "removed"
-  //         return CompletableFuture.completedFuture(true);
-  //     }
-  // }
+  public removeDeviceAsync(
+    integrationId: string,
+    deviceNetworkId: string,
+    force: boolean
+  ): Promise<boolean> {
+    let deviceIntegration = this.getDeviceIntegrationById(integrationId);
+    if (deviceIntegration != null) {
+      return deviceIntegration.removeIntegrationDeviceAsync(
+        deviceNetworkId,
+        force
+      );
+    } else {
+      logger.warn(`Attempt to remove device ${deviceNetworkId} from unknown integration ${integrationId}`);
+      // if integration does not exist, then device is "removed"
+      return new Promise((resolve) => {
+        resolve(true);
+      });
+    }
+  }
 }

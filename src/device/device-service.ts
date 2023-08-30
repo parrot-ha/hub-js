@@ -255,9 +255,31 @@ export class DeviceService {
   }
 
   public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
-    //TODO: call integration to remove device, for now just delete from db
+    let device = this.getDevice(id);
+    let integrationId = device.integration?.id;
+    let deviceNetworkId = device.deviceNetworkId;
+
     return new Promise((resolve) => {
-      resolve(this._deviceDataStore.deleteDevice(id));
+      if (integrationId != null) {
+        //call integration to remove device
+        let integrationPromise = this._integrationRegistry.removeDeviceAsync(
+          integrationId,
+          deviceNetworkId,
+          force
+        );
+        if (integrationPromise != null) {
+          integrationPromise.then((result) => {
+            if (result) {
+              resolve(this._deviceDataStore.deleteDevice(id));
+            } else {
+              resolve(false);
+            }
+          });
+        }
+      } else {
+        // no integration, just delete from data store.
+        resolve(this._deviceDataStore.deleteDevice(id));
+      }
     });
   }
 
@@ -325,7 +347,7 @@ export class DeviceService {
             // only difference is the id,, so no changes
             //logger.debug("No changes for file " + fileName);
           } else {
-            //logger.debug("Changes for file " + fileName);
+            logger.debug("Changes for file " + fileName);
             newDHInfo.id = oldDHInfo.id;
             this._deviceDataStore.updateDeviceHandler(newDHInfo);
           }
@@ -557,8 +579,10 @@ export class DeviceService {
       deviceHandler.author = definition.author;
       deviceHandler.capabilityList = definition.capabilities;
       deviceHandler.commandList = definition.commands;
+      deviceHandler.fingerprints = definition.fingerprints;
       deviceHandler.file = fileName;
       deviceHandler.type = type;
+
       return deviceHandler;
     } else {
       throw new Error(`No device definition found for file ${fileName}`);
@@ -658,14 +682,14 @@ export class DeviceService {
 
       if (delay > 0) {
         setTimeout(
-          this.processArrayRetObj,
+          this.processArrayRetObj.bind(this),
           delay,
           device,
           arrayRetObj,
-          arrayRetObjIndex++
+          arrayRetObjIndex + 1
         );
       } else {
-        this.processArrayRetObj(device, arrayRetObj, arrayRetObjIndex++);
+        this.processArrayRetObj(device, arrayRetObj, arrayRetObjIndex + 1);
       }
     }
   }

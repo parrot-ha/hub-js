@@ -32,8 +32,40 @@ export function hexStringToNumberArray(hexString: string): number[] {
   return data;
 }
 
+/**
+ * Converts a hex string into a number (int)
+ *
+ */
+export function hexStringToInt(hexString: string): number {
+  if (hexString == null) throw new Error("Value to convert cannot be null.");
+
+  hexString = hexString.trim();
+  if (hexString.startsWith(HEX_HEADER))
+    hexString = hexString.substring(HEX_HEADER.length);
+
+  return parseInt(hexString, 16);
+}
+
+export function reverseHexString(hexString: string): string {
+  if (hexString == null) return null;
+  if (hexString.length < 3) return hexString;
+  hexString = hexString.trim();
+  if (hexString.length % 2 != 0)
+    throw new Error("hexString must be an even length");
+  let sb = "";
+  for (let i = hexString.length - 2; i >= 0; i -= 2) {
+    sb = sb.concat(hexString.substring(i, i + 2));
+  }
+  return sb.toString();
+}
+
 export function numberToHexString(value: number, minBytes: number): string {
-  if (value === null || typeof value === 'undefined' || minBytes === null || typeof minBytes === 'undefined') {
+  if (
+    value === null ||
+    typeof value === "undefined" ||
+    minBytes === null ||
+    typeof minBytes === "undefined"
+  ) {
     throw new Error(
       "Value to convert and minimum number of bytes must be defined."
     );

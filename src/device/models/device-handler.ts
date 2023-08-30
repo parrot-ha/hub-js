@@ -23,6 +23,33 @@ export class DeviceHandler {
   extensionId: string;
   type: DeviceHandlerType;
 
+  public static buildFromObject(obj: any) {
+    let dh = new DeviceHandler();
+    dh.id = obj.id;
+    dh.file = obj.file;
+    dh.name = obj.name;
+    dh.namespace = obj.namespace;
+    dh.author = obj.author;
+    dh.tags = obj.tags;
+    dh.capabilityList = obj.capabilityList;
+    dh.commandList = obj.commandList;
+    dh.attributeList = obj.attributeList;
+    dh.fingerprints = [];
+    if (
+      obj.fingerprints != null &&
+      Array.isArray(obj.fingerprints) &&
+      obj.fingerprints.length > 0
+    ) {
+      for (let fingerprint of obj.fingerprints) {
+        dh.fingerprints.push(Fingerprint.buildFromObject(fingerprint));
+      }
+    }
+    dh.extensionId = obj.intg;
+    dh.type = obj.type as DeviceHandlerType;
+
+    return dh;
+  }
+
   public equalsIgnoreId(dh: DeviceHandler): boolean {
     if (dh == null) {
       return false;

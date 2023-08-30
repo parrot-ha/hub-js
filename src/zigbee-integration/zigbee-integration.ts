@@ -5,13 +5,13 @@ import { DeviceIntegration } from "../integration/device-integration";
 const { Controller } = require("zigbee-herdsman");
 import { randomBytes } from "crypto";
 import {
+  hexStringToInt,
   hexStringToNumberArray,
   numberArrayToHexString,
   numberToHexString,
 } from "../utils/hex-utils";
 import { PreferencesBuilder } from "../integration/preferences-builder";
 import { DeviceScanIntegrationExtension } from "../integration/device-scan-integration-extension";
-//import { Device as ZigbeeDevice } from "zigbee-herdsman/dist/controller/model";
 import {
   DeviceAnnouncePayload,
   DeviceInterviewPayload,
@@ -24,6 +24,7 @@ import {
 import { Device as ZigbeeDevice } from "zigbee-herdsman/dist/controller/model";
 import { isNotBlank } from "../utils/string-utils";
 import { DeviceAddedEvent } from "../integration/integration-events";
+import { sendZigbeeMessage } from "./zigbee-message-transformer";
 
 const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
@@ -33,17 +34,36 @@ export default class ZigbeeIntegration
   extends DeviceIntegration
   implements ResetIntegrationExtension, DeviceScanIntegrationExtension
 {
-  private _coordinator: any;
+  private _controller: any;
 
   public removeIntegrationDeviceAsync(
     deviceNetworkId: string,
     force: boolean
   ): Promise<boolean> {
-    throw new Error("Method not implemented.");
+    return new Promise<boolean>((resolve) => {
+      try {
+        let zbDevice: ZigbeeDevice = this._controller.getDeviceByNetworkAddress(
+          hexStringToInt(deviceNetworkId)
+        );
+        if (zbDevice == null) {
+          logger.info("zigbee device not found to delete: " + deviceNetworkId);
+          resolve(true);
+        } else {
+          zbDevice.removeFromNetwork().then(() => resolve(true));
+        }
+      } catch (err) {
+        resolve(false);
+      }
+    });
   }
 
   public processAction(action: HubAction): HubResponse {
-    throw new Error("Method not implemented.");
+    if (action === null) return null;
+
+    let msg = action.action;
+    sendZigbeeMessage(msg, this._controller);
+
+    return null;
   }
 
   public start(): void {
@@ -103,7 +123,7 @@ export default class ZigbeeIntegration
         zigbeeChannelList = [parseInt(zigbeeChannel)];
       }
       try {
-        this._coordinator = new Controller({
+        this._controller = new Controller({
           network: {
             panID: panID,
             extendedPanID: hexStringToNumberArray(extendedPanIDStr),
@@ -114,45 +134,45 @@ export default class ZigbeeIntegration
           databasePath: DB,
         });
 
-        this._coordinator.on("message", async (msg: MessagePayload) => {
+        this._controller.on("message", async (msg: MessagePayload) => {
           this.zigbeeMessage(msg);
         });
 
-        this._coordinator.on(
+        this._controller.on(
           "deviceJoined",
           async (msg: DeviceJoinedPayload) => {
             this.deviceJoined(msg);
           }
         );
-        this._coordinator.on(
+        this._controller.on(
           "deviceInterview",
           async (msg: DeviceInterviewPayload) => {
             this.deviceInterview(msg);
           }
         );
-        this._coordinator.on(
+        this._controller.on(
           "deviceAnnounce",
           async (msg: DeviceAnnouncePayload) => {
             this.deviceAnnounce(msg);
           }
         );
-        this._coordinator.on("deviceLeave", async (msg: DeviceLeavePayload) => {
+        this._controller.on("deviceLeave", async (msg: DeviceLeavePayload) => {
           this.deviceLeave(msg);
         });
-        this._coordinator.on(
+        this._controller.on(
           "deviceNetworkAddressChanged",
           async (msg: DeviceNetworkAddressChangedPayload) => {
             this.deviceNetworkAddressChanged(msg);
           }
         );
-        this._coordinator.on(
+        this._controller.on(
           "permitJoinChanged",
           async (msg: PermitJoinChangedPayload) => {
             this.permitJoinChanged(msg);
           }
         );
 
-        this._coordinator
+        this._controller
           .start((err: any) => {
             if (err) {
               console.error(err);
@@ -161,7 +181,7 @@ export default class ZigbeeIntegration
           .then(() => {
             logger.debug("started with device " + serialPortName);
 
-            this._coordinator
+            this._controller
               .getNetworkParameters()
               .then((networkParameters: any) => {
                 //TODO: save the settings
@@ -193,7 +213,8 @@ export default class ZigbeeIntegration
 
   private zigbeeMessage(msg: MessagePayload) {
     logger.debug("zigbee message type: " + msg.type);
-    if (msg.type != "commandQueryNextImageRequest") logger.debug(msg);
+    if (msg.type != "commandQueryNextImageRequest")
+      logger.debug(JSON.stringify(msg));
   }
 
   private deviceJoined(msg: DeviceJoinedPayload) {
@@ -202,6 +223,7 @@ export default class ZigbeeIntegration
       // new device joined!
     }
   }
+
   private deviceInterview(msg: DeviceInterviewPayload) {
     console.log("deviceInterview", msg);
     if (msg.device) {
@@ -210,7 +232,7 @@ export default class ZigbeeIntegration
         let deviceMap = new Map<string, any>();
         deviceMap.set(
           "networkAddress",
-          numberToHexString(msg.device.networkAddress, 1)
+          numberToHexString(msg.device.networkAddress, 2)
         );
         deviceMap.set("initializing", false);
         this.joinedDevices.set(msg.device.ieeeAddr, deviceMap);
@@ -279,14 +301,14 @@ export default class ZigbeeIntegration
       if (zigBeeEndpoint.getInputClusters().length > 0) {
         let inputClustersStr = zigBeeEndpoint
           .getInputClusters()
-          .map((inputCluster) => numberToHexString(inputCluster.ID, 1))
+          .map((inputCluster) => numberToHexString(inputCluster.ID, 2))
           .join(",");
         fingerprint.set("inClusters", inputClustersStr);
       }
       if (zigBeeEndpoint.getOutputClusters().length > 0) {
         let outputClustersStr = zigBeeEndpoint
           .getOutputClusters()
-          .map((inputCluster) => numberToHexString(inputCluster.ID, 1))
+          .map((inputCluster) => numberToHexString(inputCluster.ID, 2))
           .join(",");
         fingerprint.set("outClusters", outputClustersStr);
       }
@@ -296,12 +318,9 @@ export default class ZigbeeIntegration
         numberToHexString(zigBeeEndpoint.profileID, 2)
       );
 
-      //TODO: lookup manufactuer and model from device, right now it appears that this is empty.
-      let manufacturer =
-        zigBeeEndpoint.getClusterAttributeValue(0, 4)?.toString() || "0";
+      let manufacturer = zigbeeDevice.manufacturerName;
       fingerprint.set("manufacturer", manufacturer);
-      let model =
-        zigBeeEndpoint.getClusterAttributeValue(0, 5)?.toString() || "0";
+      let model = zigbeeDevice.modelID;
       fingerprint.set("model", model);
 
       // add fingerprint to joinedDevices
@@ -342,7 +361,7 @@ export default class ZigbeeIntegration
   }
 
   public stop(): Promise<any> {
-    return this._coordinator.stop();
+    return this._controller.stop();
   }
 
   public getPreferencesLayout(): any {
@@ -466,9 +485,9 @@ export default class ZigbeeIntegration
   }
 
   reset(): Promise<boolean> {
-    if (this._coordinator != null) {
+    if (this._controller != null) {
       return new Promise<boolean>((resolve) => {
-        this._coordinator
+        this._controller
           .reset("hard")
           .then(() => {
             logger.info("coordinator reset");
@@ -499,7 +518,7 @@ export default class ZigbeeIntegration
 
   public startScan(options: Object): boolean {
     //TODO: listen for events from coordinator
-    this._coordinator.permitJoin(true, null, 90);
+    this._controller.permitJoin(true, null, 90);
     console.log("start scan");
     this._joinMode = true;
     this._joinStart = Date.now();
@@ -507,7 +526,7 @@ export default class ZigbeeIntegration
   }
 
   public stopScan(options: Object): boolean {
-    this._coordinator.permitJoin(false);
+    this._controller.permitJoin(false);
     this._joinMode = false;
     return true;
   }
@@ -524,13 +543,7 @@ export default class ZigbeeIntegration
       for (let key of this.joinedDevices.keys()) {
         let entryValue = this.joinedDevices.get(key);
         let joinedDeviceMap: any = {};
-        logger.debug(
-          "entryValue: " + JSON.stringify(Object.fromEntries(entryValue))
-        );
-        joinedDeviceMap["Network Address"] = numberToHexString(
-          entryValue.get("networkAddress"),
-          2
-        );
+        joinedDeviceMap["Network Address"] = entryValue.get("networkAddress");
         joinedDeviceMap["IEEE Address"] = key;
 
         let fingerprint = entryValue.get("fingerprint");

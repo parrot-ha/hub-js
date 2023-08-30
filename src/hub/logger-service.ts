@@ -7,6 +7,7 @@ const _winstonLogger = createLogger({
     new transports.File({
       format: combine(timestamp(), json()),
       filename: "parrothub.log",
+      maxsize: 5000000,
     }),
   ],
 });

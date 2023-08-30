@@ -3,6 +3,7 @@ import { Attribute } from "./attribute";
 import { Device } from "./device";
 import { EntityWrapper } from "../../entity/models/entity-wrapper";
 import { State } from "./state";
+import { hexStringToInt } from "../../utils/hex-utils";
 
 export class DeviceWrapper implements EntityWrapper {
   private _device: Device;
@@ -35,6 +36,20 @@ export class DeviceWrapper implements EntityWrapper {
     }
     this._device.deviceNetworkId = deviceNetworkId;
     this._deviceService.saveDevice(this._device);
+  }
+
+  get endpointId(): number {
+    if (this._device.integration != null) {
+      let endpointIdObj = this._device.integration.options["endpointId"];
+      if (endpointIdObj != null) {
+        if (typeof endpointIdObj === "string") {
+          return hexStringToInt(endpointIdObj);
+        } else if (typeof endpointIdObj === "number") {
+          return Math.floor(endpointIdObj);
+        }
+      }
+    }
+    return null;
   }
 
   public currentState(attributeName: string): State {

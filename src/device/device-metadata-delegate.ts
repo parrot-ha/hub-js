@@ -1,6 +1,7 @@
 import { CommandArgument } from "./models/command-argument";
 import { Command } from "./models/command";
 import { createStandardInput } from "../entity/entity-preferences-helper";
+import { Fingerprint } from "./models/fingerprint";
 
 export class DeviceMetadataDelegate {
   private _includeDefinition: boolean;
@@ -45,7 +46,7 @@ export class DeviceMetadataDelegate {
       fingerprints = [];
       this.metadataValue.definition.fingerprints = fingerprints;
     }
-    fingerprints.push(value);
+    fingerprints.push(Fingerprint.buildFromObject(value));
   }
 
   public section(title: string, closure: Function) {

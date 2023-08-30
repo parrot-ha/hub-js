@@ -178,7 +178,7 @@ module.exports = function (
       deviceService.cancelRemoveDeviceAsync(id);
       res.status(202).end();
     } else {
-      let deviceRemovedPromise: Promise<any> = deviceService.removeDeviceAsync(
+      let deviceRemovedPromise: Promise<boolean> = deviceService.removeDeviceAsync(
         id,
         force
       );
@@ -213,14 +213,18 @@ module.exports = function (
       capabilityList?.forEach((capabilityName: string) => {
         let capability: Capability = Capabilities.getCapability(capabilityName);
         capability?.commands?.forEach((command: Command) => {
-          // TODO: check for existing command and don't add duplicates
-          commands.push(command);
+          // check for existing command and don't add duplicates
+          if (commands.findIndex((cmd) => cmd.name === command.name) < 0) {
+            commands.push(command);
+          }
         });
       });
       let commandList: Command[] = deviceHandlerInfo.commandList;
       if (commandList != null) {
         commandList.forEach((command: Command) => {
-          commands.push(command);
+          if (commands.findIndex((cmd) => cmd.name === command.name) < 0) {
+            commands.push(command);
+          }
         });
       }
     }
