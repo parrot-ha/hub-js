@@ -17,6 +17,7 @@ import { HubMultiAction } from "./models/hub-multi-action";
 import { Protocol } from "./models/protocol";
 import { HubResponse } from "./models/hub-response";
 import { IntegrationRegistry } from "../integration/integration-registry";
+import { difference } from "../utils/object-utils";
 
 const logger = require("../hub/logger-service")({ source: "DeviceService" });
 
@@ -403,6 +404,7 @@ export class DeviceService {
     return deviceHandlerInfo;
   }
 
+  // state of attribute
   updateDeviceState(event: ParrotEvent): void {
     let d: Device = this._deviceDataStore.getDevice(event.sourceId);
     let s: State = new State(event.name, event.value, event.unit);
@@ -410,6 +412,30 @@ export class DeviceService {
     //TODO: store state history in database
     //TODO: use write behind cache for saving device
     this._deviceDataStore.updateDevice(d);
+  }
+
+  
+  // state object
+  public saveDeviceState(
+    id: string,
+    originalState: any,
+    updatedState: any
+  ) {
+    let changes = difference(updatedState, originalState);
+    let device: Device = this.getDevice(id);
+    let existingState = device.state;
+    if (existingState) {
+      changes.removed.forEach((key) => delete existingState[key]);
+      Object.keys(changes.updated).forEach(
+        (key) => (existingState[key] = changes.updated[key])
+      );
+      Object.keys(changes.added).forEach(
+        (key) => (existingState[key] = changes.added[key])
+      );
+      this._deviceDataStore.saveDeviceState(id, existingState);
+    } else {
+      this._deviceDataStore.saveDeviceState(id, updatedState);
+    }
   }
 
   public getDeviceHandlerByNameAndNamespace(
@@ -582,6 +608,7 @@ export class DeviceService {
       deviceHandler.fingerprints = definition.fingerprints;
       deviceHandler.file = fileName;
       deviceHandler.type = type;
+      deviceHandler.inlcudes = metadataValue.includes;
 
       return deviceHandler;
     } else {

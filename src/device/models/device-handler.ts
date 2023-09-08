@@ -22,6 +22,7 @@ export class DeviceHandler {
   fingerprints: Fingerprint[];
   extensionId: string;
   type: DeviceHandlerType;
+  inlcudes: Array<string>;
 
   public static buildFromObject(obj: any) {
     let dh = new DeviceHandler();
@@ -46,6 +47,7 @@ export class DeviceHandler {
     }
     dh.extensionId = obj.intg;
     dh.type = obj.type as DeviceHandlerType;
+    dh.inlcudes = obj.includes;
 
     return dh;
   }
@@ -82,6 +84,9 @@ export class DeviceHandler {
       return false;
     }
     if (!arraysEqual(this.fingerprints, dh.fingerprints)) {
+      return false;
+    }
+    if (!arraysEqual(this.inlcudes, dh.inlcudes)) {
       return false;
     }
     return this.type === dh.type;

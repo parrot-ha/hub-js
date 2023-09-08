@@ -2,21 +2,25 @@ import { CommandArgument } from "./models/command-argument";
 import { Command } from "./models/command";
 import { createStandardInput } from "../entity/entity-preferences-helper";
 import { Fingerprint } from "./models/fingerprint";
+import { Attribute } from "./models/attribute";
 
 export class DeviceMetadataDelegate {
   private _includeDefinition: boolean;
   private _includePreferences: boolean;
   private _sandboxMethods: string[] = [
+    "include",
     "metadata",
     "definition",
     "preferences",
     "section",
     "capability",
+    "attribute",
     "command",
     "input",
     "fingerprint",
   ];
   metadataValue: any = {
+    includes: [],
     definition: {
       capabilities: [],
       attributes: [],
@@ -38,6 +42,10 @@ export class DeviceMetadataDelegate {
 
   get sandboxMethods() {
     return this._sandboxMethods;
+  }
+
+  public include(includeValue: string) {
+    this.metadataValue.includes.push(includeValue);
   }
 
   public fingerprint(value: any) {
@@ -77,6 +85,22 @@ export class DeviceMetadataDelegate {
     }
     this.temporarySection.input.push(tempInput);
     this.temporarySection.body.push(tempInput);
+  }
+
+  public attribute(
+    attributeName: string,
+    attributeType: string,
+    possibleValues: Array<any>
+  ) {
+    if (!attributeName || !attributeType) {
+      return;
+    }
+    let attribute: Attribute = new Attribute(
+      attributeType,
+      attributeName,
+      possibleValues
+    );
+    this.metadataValue.definition.attributes.push(attribute);
   }
 
   public command(commandName: string, commandArguments: any[]) {

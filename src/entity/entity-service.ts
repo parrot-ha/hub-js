@@ -19,6 +19,7 @@ import EventEmitter from "node:events";
 import { HubAction } from "../device/models/hub-action";
 import { Fingerprint } from "../device/models/fingerprint";
 import { ZigBeeUtils } from "../utils/zigbee-utils";
+import { DataType } from "../utils/data-type";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -386,20 +387,24 @@ export class EntityService extends EventEmitter {
     );
     //TODO: check that method name is listed as a command
     try {
+      let stateCopy = JSON.parse(JSON.stringify(device.state));
+      let context = this.buildDeviceSandbox(device, deviceHandler);
       let returnVal = this.runEntityMethod(
         deviceHandler.file,
         methodName,
         `deviceHandler_${deviceHandler.id}`,
-        this.buildDeviceSandbox(device),
+        context,
         args
       );
       this._deviceService.processReturnObj(device, returnVal);
+      //update state
+      this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
       console.log("err with run device method", err);
     }
   }
 
-  private buildDeviceSandbox(device: Device): any {
+  private buildDeviceSandbox(device: Device, deviceHandler: DeviceHandler): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(
@@ -409,8 +414,7 @@ export class EntityService extends EventEmitter {
     );
 
     sandbox["HubAction"] = HubAction;
-    // sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
-    // sandbox["httpGet"] = deviceDelegate.httpGet;
+    sandbox.state = JSON.parse(JSON.stringify(device.state));
     deviceDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (deviceDelegate as any)[sandboxMethod].bind(
         deviceDelegate
@@ -422,6 +426,15 @@ export class EntityService extends EventEmitter {
     sandbox["zigbee"] = new ZigBeeUtils(
       new DeviceWrapper(device, this._deviceService)
     );
+
+    if(deviceHandler.inlcudes != null) {
+      deviceHandler.inlcudes.forEach((include) => {
+        if(include === "zigbee.zcl.DataType") {
+          sandbox["DataType"] = new DataType();
+        }
+        //TODO: handle async http
+      })
+    }
 
     let settingsObject: any = {};
     let settingsHandler = this.buildDeviceSettingsHandler(device);

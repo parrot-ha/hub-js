@@ -17,6 +17,8 @@ export interface DeviceDataStore {
 
   updateDevice(device: Device): void;
 
+  saveDeviceState(deviceId: string, state: any): boolean;
+
   deleteDevice(id: string): boolean;
 
   createDevice(device: Device): string;

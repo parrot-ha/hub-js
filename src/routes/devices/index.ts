@@ -171,7 +171,7 @@ module.exports = function (
   // remove a device
   router.delete("/:id", (req: Request, res: Response) => {
     let id: string = req.params.id;
-    let force: boolean = "true" === req.params.force;
+    let force: boolean = "true" === req.query.force;
     let cancel: boolean = "true" === req.query.cancel;
     let longPoll: boolean = "true" === req.query.poll;
     if (cancel) {

@@ -9,6 +9,7 @@ import {
   hexStringToNumberArray,
   numberArrayToHexString,
   numberToHexString,
+  reverseHexString,
 } from "../utils/hex-utils";
 import { PreferencesBuilder } from "../integration/preferences-builder";
 import { DeviceScanIntegrationExtension } from "../integration/device-scan-integration-extension";
@@ -22,9 +23,14 @@ import {
   PermitJoinChangedPayload,
 } from "zigbee-herdsman/dist/controller/events";
 import { Device as ZigbeeDevice } from "zigbee-herdsman/dist/controller/model";
-import { isNotBlank } from "../utils/string-utils";
-import { DeviceAddedEvent } from "../integration/integration-events";
+import { isEmpty, isNotBlank } from "../utils/string-utils";
+import {
+  DeviceAddedEvent,
+  DeviceMessageEvent,
+} from "../integration/integration-events";
 import { sendZigbeeMessage } from "./zigbee-message-transformer";
+import { getCluster } from "zigbee-herdsman/dist/zcl/utils";
+import { DataType } from "../utils/data-type";
 
 const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
@@ -49,7 +55,26 @@ export default class ZigbeeIntegration
           logger.info("zigbee device not found to delete: " + deviceNetworkId);
           resolve(true);
         } else {
-          zbDevice.removeFromNetwork().then(() => resolve(true));
+          zbDevice
+            .removeFromNetwork()
+            .then(() => resolve(true))
+            .catch((err) => {
+              logger.warn("error on remove from network " + err.message);
+              if (force) {
+                logger.warn("force deleting zigbee device");
+                zbDevice
+                  .removeFromDatabase()
+                  .then(() => resolve(true))
+                  .catch((err) => {
+                    logger.warn(
+                      "error on force remove from database " + err.message
+                    );
+                    resolve(true);
+                  });
+              } else {
+                resolve(false);
+              }
+            });
         }
       } catch (err) {
         resolve(false);
@@ -211,10 +236,68 @@ export default class ZigbeeIntegration
     }
   }
 
-  private zigbeeMessage(msg: MessagePayload) {
+  protected zigbeeMessage(msg: MessagePayload) {
     logger.debug("zigbee message type: " + msg.type);
     if (msg.type != "commandQueryNextImageRequest")
       logger.debug(JSON.stringify(msg));
+    if (msg.type === "readResponse" || msg.type === "attributeReport") {
+      let command = "01";
+      if (msg.type === "attributeReport") command = "0A";
+      let dni = numberToHexString(msg.device.networkAddress, 2);
+      //TODO: lookup device handler and check for message preference type (old ST style or new parrot style)
+
+      let cluster = getCluster(msg.cluster);
+      let clusterId = numberToHexString(cluster.ID, 2);
+      let data: any = msg.data;
+      let dataKeys = Object.keys(data);
+      let key: string = dataKeys[0];
+      if (!key) {
+        return;
+      }
+      let value = data[key];
+      if (value === null || typeof value === "undefined" || isEmpty(value)) {
+        return;
+      }
+      let attribute = cluster.attributes[key];
+      let attributeId = attribute.ID;
+      let endpoint = numberToHexString(msg.endpoint.ID, 1);
+      let dataType = attribute.type;
+      let dataTypeSize = DataType.getLength(dataType);
+
+      // TODO: calculate size
+      let size = "01";
+
+      let encoding = numberToHexString(dataType, 1);
+      let msgStr =
+        "read attr - raw: " +
+        dni +
+        endpoint +
+        clusterId +
+        size +
+        reverseHexString(numberToHexString(attributeId, 2)) +
+        encoding +
+        // TODO: check data type to see if its a number or not
+        reverseHexString(numberToHexString(value, dataTypeSize)) +
+        ", dni: " +
+        dni +
+        ", endpoint: " +
+        endpoint +
+        ", cluster: " +
+        clusterId +
+        ", size: " +
+        size +
+        ", attrId: " +
+        numberToHexString(attributeId, 2) +
+        ", encoding: " +
+        encoding +
+        ", command: " +
+        command +
+        ", value: " +
+        // TODO: check data type to see if its a number or not
+        reverseHexString(numberToHexString(value, dataTypeSize));
+
+      this.sendEvent(new DeviceMessageEvent(dni, msgStr));
+    }
   }
 
   private deviceJoined(msg: DeviceJoinedPayload) {
@@ -266,7 +349,7 @@ export default class ZigbeeIntegration
   }
 
   public nodeAdded(node: ZigbeeDevice): void {
-    logger.debug("Node added: " + node.toString());
+    logger.debug("Node added: " + JSON.stringify(node));
     if (this.checkAndUpdateNodeInitializing(node)) {
       this.addNode(node);
     }
@@ -288,8 +371,6 @@ export default class ZigbeeIntegration
   }
 
   private addNode(zigbeeDevice: ZigbeeDevice): void {
-    logger.debug("we have a node that was just joined to the network");
-
     for (let zigBeeEndpoint of zigbeeDevice.endpoints) {
       logger.debug("New Node Endpoint: " + JSON.stringify(zigBeeEndpoint));
 
@@ -343,7 +424,7 @@ export default class ZigbeeIntegration
       if (isNotBlank(model)) {
         deviceData.set("model", model);
       }
-      // // if in join mode or join mode was started in the past 5 minutes, consider it a user initiated add.
+      // if in join mode or join mode was started in the past 5 minutes, consider it a user initiated add.
       let userInitiatedAdd =
         this._joinMode || Date.now() - this._joinStart > 1000 * 60 * 5;
       this.sendEvent(

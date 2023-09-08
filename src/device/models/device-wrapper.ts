@@ -52,6 +52,13 @@ export class DeviceWrapper implements EntityWrapper {
     return null;
   }
 
+  get zigbeeId(): string {
+    if (this._device.integration != null) {
+      return this._device.integration.options["zigbeeId"] as string;
+    }
+    return null;
+  }
+
   public currentState(attributeName: string): State {
     return this._device.getCurrentState(attributeName);
   }

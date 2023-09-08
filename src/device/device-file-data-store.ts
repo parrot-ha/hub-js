@@ -109,6 +109,22 @@ export class DeviceFileDataStore implements DeviceDataStore {
     }
   }
 
+  saveDeviceState(deviceId: string, state: any): boolean {
+    let device: Device = this.getDeviceCache().get(deviceId);
+    if (device != null) {
+      //serialize state to json and back to filter out any bad values
+      //https://docs.smartthings.com/en/latest/smartapp-developers-guide/state.html#persistence-model
+      if (state != null) {
+        device.state = JSON.parse(JSON.stringify(state));
+      }
+      this.updateDevice(device);
+    } else {
+      throw new Error("Device does not exist");
+    }
+
+    return true;
+  }
+
   public createDevice(device: Device): string {
     let deviceId: string = crypto.randomUUID();
     device.id = deviceId;

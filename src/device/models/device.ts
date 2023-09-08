@@ -11,7 +11,7 @@ export class Device {
   parentDeviceId: string | undefined;
   parentInstalledSmartAppId: string | undefined;
   private _integration: Integration;
-  state: any | undefined;
+  private _state: any | undefined;
   data: any | undefined;
   private _currentStates: Map<string, State>;
   settings: DeviceSetting[] | undefined;
@@ -20,6 +20,17 @@ export class Device {
 
   // transient value
   private _nameToSettingMap: Map<string, DeviceSetting>;
+
+  public get state() {
+    if (this._state === null || typeof this._state === "undefined") {
+      this._state = {};
+    }
+    return this._state;
+  }
+
+  public set state(state: any) {
+    this._state = state;
+  }
 
   public get displayName() {
     if (!this.label) {
