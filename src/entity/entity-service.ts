@@ -377,6 +377,8 @@ export class EntityService extends EventEmitter {
     );
     if (device != null) {
       this.runDeviceMethod(device.id, methodName, args);
+    } else {
+      logger.warn(`Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`);
     }
   }
 

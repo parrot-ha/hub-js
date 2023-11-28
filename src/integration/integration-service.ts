@@ -161,6 +161,8 @@ export class IntegrationService {
           }
         }
       }
+    } else {
+      logger.debug("unknown event type");
     }
   }
 

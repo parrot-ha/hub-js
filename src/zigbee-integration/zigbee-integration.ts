@@ -268,35 +268,42 @@ export default class ZigbeeIntegration
       let size = "01";
 
       let encoding = numberToHexString(dataType, 1);
-      let msgStr =
-        "read attr - raw: " +
-        dni +
-        endpoint +
-        clusterId +
-        size +
-        reverseHexString(numberToHexString(attributeId, 2)) +
-        encoding +
-        // TODO: check data type to see if its a number or not
-        reverseHexString(numberToHexString(value, dataTypeSize)) +
-        ", dni: " +
-        dni +
-        ", endpoint: " +
-        endpoint +
-        ", cluster: " +
-        clusterId +
-        ", size: " +
-        size +
-        ", attrId: " +
-        numberToHexString(attributeId, 2) +
-        ", encoding: " +
-        encoding +
-        ", command: " +
-        command +
-        ", value: " +
-        // TODO: check data type to see if its a number or not
-        reverseHexString(numberToHexString(value, dataTypeSize));
 
-      this.sendEvent(new DeviceMessageEvent(dni, msgStr));
+      try {
+        let msgStr =
+          "read attr - raw: " +
+          dni +
+          endpoint +
+          clusterId +
+          size +
+          reverseHexString(numberToHexString(attributeId, 2)) +
+          encoding +
+          // TODO: check data type to see if its a number or not
+          reverseHexString(numberToHexString(value, dataTypeSize)) +
+          ", dni: " +
+          dni +
+          ", endpoint: " +
+          endpoint +
+          ", cluster: " +
+          clusterId +
+          ", size: " +
+          size +
+          ", attrId: " +
+          numberToHexString(attributeId, 2) +
+          ", encoding: " +
+          encoding +
+          ", command: " +
+          command +
+          ", value: " +
+          // TODO: check data type to see if its a number or not
+          (dataTypeSize > 0
+            ? reverseHexString(numberToHexString(value, dataTypeSize))
+            : value);
+
+        this.sendEvent(new DeviceMessageEvent(dni, msgStr));
+      } catch (err) {
+        logger.warn("Issue processing message: " + JSON.stringify(msg));
+      }
     }
   }
 
