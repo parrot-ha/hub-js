@@ -17,11 +17,12 @@ describe("get Device Handler By Fingerprint", () => {
       {} as EventService,
       {} as LocationService
     );
-    let { id, joinName } = entityService.getDeviceHandlerByFingerprint(
+    let deviceHandlerInfo = entityService.getDeviceHandlerByFingerprint(
       new Map<string, string>()
     );
-    expect(id).toBeDefined();
-    expect(joinName).toBe("Unknown Device");
+    expect(deviceHandlerInfo).toBeDefined();
+    expect(deviceHandlerInfo.id).toBeDefined();
+    expect(deviceHandlerInfo.joinName).toBe("Unknown Device");
   });
 
   test("single fingerprint matches device info", () => {
@@ -73,9 +74,10 @@ describe("get Device Handler By Fingerprint", () => {
       "0000,0003,0004,0005,0006,0702,0B04,0B05,FC03"
     );
 
-    let { id, joinName } =
+    let deviceHandlerInfo =
       entityService.getDeviceHandlerByFingerprint(deviceInfo);
-    expect(id).toBeDefined();
-    expect(joinName).toBe("Smartthings Outlet");
+    expect(deviceHandlerInfo).toBeDefined();
+    expect(deviceHandlerInfo.id).toBeDefined();
+    expect(deviceHandlerInfo.joinName).toBe("Smartthings Outlet");
   });
 });
