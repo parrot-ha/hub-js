@@ -1,9 +1,7 @@
 import { describe, expect, test } from "@jest/globals";
 import { EntityService } from "./entity-service";
 import { DeviceService } from "../device/device-service";
-import { DeviceFileDataStore } from "../device/device-file-data-store";
 import { SmartAppService } from "../smartApp/smart-app-service";
-import { IntegrationRegistry } from "../integration/integration-registry";
 import { EventService } from "../hub/event-service";
 import { LocationService } from "../hub/location-service";
 import { DeviceHandler } from "../device/models/device-handler";
@@ -11,17 +9,30 @@ import { Fingerprint } from "../device/models/fingerprint";
 
 describe("get Device Handler By Fingerprint", () => {
   test("empty device info", () => {
+    let mockGetDeviceHandlers = jest.fn(() => []);
+    let mockDeviceService = {
+      getDeviceHandlers: function () {
+        return [];
+      },
+      getDeviceHandlerByNameAndNamespace: function () {
+        let dh = new DeviceHandler();
+        dh.id = "789";
+        return dh;
+      },
+    };
+
     let entityService = new EntityService(
-      new DeviceService(new DeviceFileDataStore(), {} as IntegrationRegistry),
+      mockDeviceService as unknown as DeviceService,
       {} as SmartAppService,
       {} as EventService,
       {} as LocationService
     );
+    
     let deviceHandlerInfo = entityService.getDeviceHandlerByFingerprint(
       new Map<string, string>()
     );
-    expect(deviceHandlerInfo).toBeDefined();
-    expect(deviceHandlerInfo.id).toBeDefined();
+    expect(deviceHandlerInfo).not.toBeNull();
+    expect(deviceHandlerInfo.id).toBe("789");
     expect(deviceHandlerInfo.joinName).toBe("Unknown Device");
   });
 
@@ -76,7 +87,7 @@ describe("get Device Handler By Fingerprint", () => {
 
     let deviceHandlerInfo =
       entityService.getDeviceHandlerByFingerprint(deviceInfo);
-    expect(deviceHandlerInfo).toBeDefined();
+    expect(deviceHandlerInfo).not.toBeNull();
     expect(deviceHandlerInfo.id).toBeDefined();
     expect(deviceHandlerInfo.joinName).toBe("Smartthings Outlet");
   });
