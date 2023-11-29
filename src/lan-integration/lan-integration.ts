@@ -3,9 +3,11 @@ import { Server } from "http";
 import arp from "@network-utils/arp-lookup";
 import { DeviceIntegration } from "../integration/device-integration";
 import { LanDeviceMessageEvent } from "../integration/integration-events";
-import { PreferencesBuilder } from "../utils/preferences-builder";
+import { PreferencesBuilder } from "../integration/preferences-builder";
 import { Protocol } from "../device/models/protocol";
 import { HubAction } from "../device/models/hub-action";
+import { HubResponse } from "../device/models/hub-response";
+import http from "http";
 const logger = require("../hub/logger-service")({ source: "LanIntegration" });
 
 export default class LanIntegration extends DeviceIntegration {
@@ -50,7 +52,7 @@ export default class LanIntegration extends DeviceIntegration {
 
         arp.toMAC(remoteAddress).then((macAddress: string) => {
           if (macAddress) {
-            macAddress = macAddress.replace(":", "").trim().toUpperCase();
+            macAddress = macAddress.replaceAll(":", "").trim().toUpperCase();
           }
           this.processLanMessage(
             macAddress || "",
@@ -78,8 +80,129 @@ export default class LanIntegration extends DeviceIntegration {
     return new Promise<boolean>((resolve) => resolve(true));
   }
 
-  public processAction(action: HubAction): string {
-    throw new Error("Method not implemented.");
+  public processAction(action: HubAction): HubResponse {
+    if (action === null || action === undefined) {
+      return null;
+    }
+    if (action.action?.startsWith("lan discovery")) {
+      // TODO: send out lan discovery message
+      return null;
+    } else {
+      // send message out
+      let hubResponse: HubResponse = new HubResponse();
+      //TODO: check for options.get("protocol") : LAN_PROTOCOL_TCP, LAN_PROTOCOL_UDP
+      // also: options.get("type") : LAN_TYPE_UDPCLIENT
+      // https://community.smartthings.com/t/udp-not-possible-they-said-wait-whats-this/13466
+      if (action.protocol === Protocol.LAN) {
+        this.sendLanHubAction(action);
+      } else {
+        logger.warn(
+          `Not implemented yet, Protocol: ${action.protocol} action: ${action.action}`
+        );
+      }
+      return hubResponse;
+    }
+  }
+
+  private sendLanHubAction(hubAction: HubAction): void {
+    let path = hubAction.params?.path || "/";
+    let method = hubAction.params?.method || "POST";
+    //let protocol = hubAction.params?.protocol || Protocol.LAN;
+    let headers: any = {
+      Accept: "*/*",
+      "User-Agent": "Linux UPnP/1.0 ParrotHub",
+    };
+    if (typeof hubAction.params?.body === "object") {
+      headers["Content-Type"] = "application/json";
+    } else {
+      headers["Content-Type"] = 'text/xml; charset="utf-8"';
+    }
+    if (typeof hubAction.params?.headers === "object") {
+      for (let key in hubAction.params?.headers) {
+        headers[key] = hubAction.params?.headers[key];
+      }
+    }
+    let query = hubAction.params?.query;
+    let body: string;
+    if (typeof hubAction.params?.body === "object") {
+      body = JSON.stringify(hubAction.params?.body);
+      headers["Content-Length"] = Buffer.byteLength(body);
+    } else if (hubAction.params?.body) {
+      body = hubAction.params?.body.toString();
+      headers["Content-Length"] = Buffer.byteLength(body);
+    }
+
+    let hostHeaderValue = "";
+    for (let headerKey of Object.keys(headers)) {
+      if (headerKey.trim().toLowerCase() === "host") {
+        hostHeaderValue = headers[headerKey];
+      }
+    }
+
+    const myUrl = new URL(`http://${hostHeaderValue}`);
+    if (path?.indexOf("?") > -1) {
+      myUrl.pathname = path.substring(0, path.indexOf("?"));
+      myUrl.search = path.substring(path.indexOf("?"));
+    } else {
+      myUrl.pathname = path;
+    }
+    if (query && typeof query === "object") {
+      for (let queryParam of Object.keys(query)) {
+        myUrl.searchParams.append(queryParam, query[queryParam]);
+      }
+    }
+
+    let hubResponse = new HubResponse();
+    let options = { method: method, headers: headers };
+    const req = http.request(myUrl.toString(), options, (res) => {
+      hubResponse.status = res.statusCode;
+      hubResponse.headers = JSON.parse(JSON.stringify(res.headers));
+      let httpVersion = res.httpVersion;
+      let headers = res.headers;
+      res.setEncoding("utf8");
+      let rawData = "";
+      res.on("data", (chunk: any) => {
+        rawData += chunk;
+      });
+
+      res.on("end", () => {
+        if (hubAction.callback != null) {
+          hubResponse.body = rawData;
+          hubResponse.callback = hubAction.callback;
+          //TODO: notify of integration message;
+        } else {
+          // send message to device
+          let headersStr = `${method} ${myUrl.pathname}${myUrl.search} ${httpVersion}\n`;
+
+          for (let headerKey of Object.keys(headers)) {
+            headersStr = headersStr.concat(
+              `${headerKey}: ${headers[headerKey]}\n`
+            );
+          }
+
+          arp.toMAC(myUrl.hostname).then((macAddress: string) => {
+            if (macAddress) {
+              macAddress = macAddress.replaceAll(":", "").trim().toUpperCase();
+            }
+            this.processLanMessage(
+              macAddress || "",
+              myUrl.hostname,
+              parseInt(myUrl.port || "80"),
+              rawData,
+              headersStr
+            );
+          });
+        }
+      });
+    });
+
+    req.on("error", (e) => {
+      logger.error(`problem with request: ${e.message}`);
+    });
+
+    // Write data to request body
+    if (body) req.write(body);
+    req.end();
   }
 
   public get name(): string {

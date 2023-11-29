@@ -5,7 +5,7 @@ import { SmartAppDelegate } from "../smartApp/smart-app-delegate";
 import { DeviceService } from "../device/device-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
 import { ParrotEvent } from "./models/event";
-import { SmartApp, SmartAppType } from "../smartApp/models/smart-app";
+import { SmartApp } from "../smartApp/models/smart-app";
 import { Device } from "../device/models/device";
 import { DeviceHandler } from "../device/models/device-handler";
 import { InstalledSmartApp } from "../smartApp/models/installed-smart-app";
@@ -14,16 +14,24 @@ import { DeviceWrapper } from "../device/models/device-wrapper";
 import { DeviceSetting } from "../device/models/device-setting";
 import { LocationService } from "../hub/location-service";
 import { EntityLogger } from "./entity-logger-service";
-import { isEmpty } from "../utils/string-utils";
+import { isEmpty, isNotBlank } from "../utils/string-utils";
 import EventEmitter from "node:events";
+import { HubAction } from "../device/models/hub-action";
+import { Fingerprint } from "../device/models/fingerprint";
+import { ZigBeeUtils } from "../utils/zigbee-utils";
+import { DataType } from "../utils/data-type";
 
 const fs = require("fs");
 const vm = require("vm");
 
+const logger = require("../hub/logger-service")({
+  source: "EntityService",
+});
+
 export class EntityService extends EventEmitter {
-  private deviceService: DeviceService;
-  private smartAppService: SmartAppService;
-  private eventService: EventService;
+  private _deviceService: DeviceService;
+  private _smartAppService: SmartAppService;
+  private _eventService: EventService;
   private _locationService: LocationService;
 
   constructor(
@@ -33,9 +41,9 @@ export class EntityService extends EventEmitter {
     locationService: LocationService
   ) {
     super();
-    this.deviceService = deviceService;
-    this.eventService = eventService;
-    this.smartAppService = smartAppService;
+    this._deviceService = deviceService;
+    this._eventService = eventService;
+    this._smartAppService = smartAppService;
     this._locationService = locationService;
   }
 
@@ -70,16 +78,16 @@ export class EntityService extends EventEmitter {
     }
 
     let subscriptions: Subscription[] =
-      this.eventService.getSubscribedSmartApps(event);
+      this._eventService.getSubscribedSmartApps(event);
 
     if (
       (subscriptions != null && subscriptions.length > 0) ||
       event.isStateChange()
     ) {
       // save event in database
-      this.eventService.saveEvent(event);
+      this._eventService.saveEvent(event);
       if (event.source == "DEVICE") {
-        this.deviceService.updateDeviceState(event);
+        this._deviceService.updateDeviceState(event);
       }
     }
 
@@ -97,13 +105,13 @@ export class EntityService extends EventEmitter {
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
-    return this.deviceService.getDeviceHandlerPreferencesLayout(
+    return this._deviceService.getDeviceHandlerPreferencesLayout(
       deviceHandlerId
     );
   }
 
   public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
-    if (this.smartAppService.updateSmartAppSourceCode(id, sourceCode)) {
+    if (this._smartAppService.updateSmartAppSourceCode(id, sourceCode)) {
       //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
       //this.clearSmartAppScript(id);
       return true;
@@ -111,10 +119,31 @@ export class EntityService extends EventEmitter {
     return false;
   }
 
+  public updateDeviceHandlerSourceCode(
+    id: string,
+    sourceCode: string
+  ): boolean {
+    if (this._deviceService.updateDeviceHandlerSourceCode(id, sourceCode)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearDeviceHandlerScript(id);
+      return true;
+    }
+    return false;
+  }
+
   public removeSmartApp(id: string): boolean {
-    if (this.smartAppService.removeSmartApp(id)) {
+    if (this._smartAppService.removeSmartApp(id)) {
       //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
       //this.clearSmartAppScript(id);
+      return true;
+    }
+    return false;
+  }
+
+  public removeDeviceHandler(id: string): boolean {
+    if (this._deviceService.removeDeviceHandler(id)) {
+      //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
+      //this.clearDeviceHandlerScript(id);
       return true;
     }
     return false;
@@ -128,8 +157,8 @@ export class EntityService extends EventEmitter {
     return new Promise((resolve, reject) => {
       try {
         let installedSmartApp: InstalledSmartApp =
-          this.smartAppService.getInstalledSmartApp(id);
-        let smartApp: SmartApp = this.smartAppService.getSmartApp(
+          this._smartAppService.getInstalledSmartApp(id);
+        let smartApp: SmartApp = this._smartAppService.getSmartApp(
           installedSmartApp.smartAppId
         );
         let retVal;
@@ -154,7 +183,7 @@ export class EntityService extends EventEmitter {
               retVal = myFunction.call(null, args);
             }
             //update state
-            this.smartAppService.updateInstalledSmartAppState(
+            this._smartAppService.updateInstalledSmartAppState(
               installedSmartApp.id,
               stateCopy,
               context.state
@@ -173,12 +202,12 @@ export class EntityService extends EventEmitter {
 
   public updateOrInstallInstalledSmartApp(id: string): void {
     let installedSmartApp: InstalledSmartApp =
-      this.smartAppService.getInstalledSmartApp(id);
+      this._smartAppService.getInstalledSmartApp(id);
     if (installedSmartApp.installed) {
       this.runSmartAppMethod(id, "updated", null);
     } else {
       installedSmartApp.installed = true;
-      this.smartAppService.updateInstalledSmartApp(installedSmartApp);
+      this._smartAppService.updateInstalledSmartApp(installedSmartApp);
       this.runSmartAppMethod(id, "installed", null);
     }
   }
@@ -189,7 +218,7 @@ export class EntityService extends EventEmitter {
   ): any {
     try {
       let preferences: any =
-        this.smartAppService.getSmartAppPreferencesByInstalledSmartApp(id);
+        this._smartAppService.getSmartAppPreferencesByInstalledSmartApp(id);
 
       if (preferences.pageList != null) {
         // multiple pages
@@ -246,7 +275,7 @@ export class EntityService extends EventEmitter {
     sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
-      this.eventService,
+      this._eventService,
       this._locationService
     );
 
@@ -268,7 +297,7 @@ export class EntityService extends EventEmitter {
     return {
       settingsCache: {},
       isaSettings: installedSmartApp.settings ? installedSmartApp.settings : [],
-      shDeviceService: this.deviceService,
+      shDeviceService: this._deviceService,
       shEntityService: this,
       get(target: any, prop: any): any {
         let settingLookupVal = this.settingsCache[prop];
@@ -313,7 +342,7 @@ export class EntityService extends EventEmitter {
   }
 
   protected buildDeviceWrapper(device: Device) {
-    let deviceWrapper = new DeviceWrapper(device, this.deviceService);
+    let deviceWrapper = new DeviceWrapper(device, this._deviceService);
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
@@ -342,41 +371,52 @@ export class EntityService extends EventEmitter {
     methodName: string,
     args: any[]
   ) {
-    let device: Device = this.deviceService.getDeviceByIntegrationAndDNI(
+    let device: Device = this._deviceService.getDeviceByIntegrationAndDNI(
       integrationId,
       deviceNetworkId
     );
     if (device != null) {
       this.runDeviceMethod(device.id, methodName, args);
+    } else {
+      logger.warn(`Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`);
     }
   }
 
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
-    let device: Device = this.deviceService.getDevice(id);
-    let deviceHandler: DeviceHandler = this.deviceService.getDeviceHandler(
+    let device: Device = this._deviceService.getDevice(id);
+    let deviceHandler: DeviceHandler = this._deviceService.getDeviceHandler(
       device.deviceHandlerId
     );
     //TODO: check that method name is listed as a command
     try {
-      this.runEntityMethod(
+      let stateCopy = JSON.parse(JSON.stringify(device.state));
+      let context = this.buildDeviceSandbox(device, deviceHandler);
+      let returnVal = this.runEntityMethod(
         deviceHandler.file,
         methodName,
         `deviceHandler_${deviceHandler.id}`,
-        this.buildDeviceSandbox(device),
+        context,
         args
       );
+      this._deviceService.processReturnObj(device, returnVal);
+      //update state
+      this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
       console.log("err with run device method", err);
     }
   }
 
-  private buildDeviceSandbox(device: Device): any {
+  private buildDeviceSandbox(device: Device, deviceHandler: DeviceHandler): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
-    let deviceDelegate: DeviceDelegate = new DeviceDelegate(device, this);
+    let deviceDelegate: DeviceDelegate = new DeviceDelegate(
+      device,
+      this,
+      this._deviceService
+    );
 
-    // sandbox["sendEvent"] = deviceDelegate.sendEvent.bind(deviceDelegate);
-    // sandbox["httpGet"] = deviceDelegate.httpGet;
+    sandbox["HubAction"] = HubAction;
+    sandbox.state = JSON.parse(JSON.stringify(device.state));
     deviceDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (deviceDelegate as any)[sandboxMethod].bind(
         deviceDelegate
@@ -385,6 +425,18 @@ export class EntityService extends EventEmitter {
 
     sandbox["metadata"] = () => {};
     sandbox["device"] = this.buildDeviceWrapper(device);
+    sandbox["zigbee"] = new ZigBeeUtils(
+      new DeviceWrapper(device, this._deviceService)
+    );
+
+    if(deviceHandler.inlcudes != null) {
+      deviceHandler.inlcudes.forEach((include) => {
+        if(include === "zigbee.zcl.DataType") {
+          sandbox["DataType"] = new DataType();
+        }
+        //TODO: handle async http
+      })
+    }
 
     let settingsObject: any = {};
     let settingsHandler = this.buildDeviceSettingsHandler(device);
@@ -427,7 +479,7 @@ export class EntityService extends EventEmitter {
     const data = fs.readFileSync(file);
 
     //TODO: can this context be saved and reused?
-    vm.createContext(context, {microtaskMode: "afterEvaluate"});
+    vm.createContext(context, { microtaskMode: "afterEvaluate" });
     try {
       vm.runInContext(data.toString(), context, {
         filename: `${entityName}.js`,
@@ -440,11 +492,13 @@ export class EntityService extends EventEmitter {
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
       try {
+        let retVal;
         if (Array.isArray(args)) {
-          myFunction.call(null, ...args);
+          retVal = myFunction.call(null, ...args);
         } else {
-          myFunction.call(null, args);
+          retVal = myFunction.call(null, args);
         }
+        return retVal;
       } catch (err) {
         console.log(err);
       }
@@ -452,5 +506,224 @@ export class EntityService extends EventEmitter {
       //TODO: do something about missing methods
       console.log(`method ${methodName} missing on entity ${entityName}`);
     }
+  }
+
+  private _fingerprints: Map<Fingerprint, string>;
+
+  private getFingerprints(): Map<Fingerprint, string> {
+    if (this._fingerprints == null) {
+      this._fingerprints = new Map<Fingerprint, string>();
+
+      for (let dhInfo of this._deviceService.getDeviceHandlers()) {
+        let dhInfoFPs = dhInfo.fingerprints;
+        if (dhInfoFPs != null) {
+          for (let fp of dhInfoFPs) {
+            this._fingerprints.set(fp, dhInfo.id);
+          }
+        }
+      }
+    }
+    return this._fingerprints;
+  }
+
+  public getDeviceHandlerByFingerprint(deviceInfo: Map<string, string>): {
+    id: string;
+    joinName: string;
+  } {
+    let fingerprints = this.getFingerprints();
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        "Fingerprints! " + JSON.stringify(Object.fromEntries(fingerprints))
+      );
+    }
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        "deviceInfo: " + JSON.stringify(Object.fromEntries(deviceInfo))
+      );
+    }
+    let matchingScore = 0;
+    let matchingFingerprint: Fingerprint = null;
+    for (let fingerprint of fingerprints.keys()) {
+      let score = this.fingerprintScore(fingerprint, deviceInfo);
+      if (score > matchingScore) {
+        matchingScore = score;
+        matchingFingerprint = fingerprint;
+      }
+    }
+    // TODO: what should be the minimum score?
+    if (matchingFingerprint != null && matchingScore > 90) {
+      if (logger.isDebugEnabled()) {
+        logger.debug(
+          "We have a matching fingerprint! " +
+            matchingFingerprint.deviceJoinName +
+            " id: " +
+            fingerprints.get(matchingFingerprint) +
+            " score: " +
+            matchingScore
+        );
+      }
+      return {
+        id: fingerprints.get(matchingFingerprint),
+        joinName: matchingFingerprint.deviceJoinName,
+      };
+    }
+
+    // if no match, return Thing
+    let thingDeviceHandler =
+      this._deviceService.getDeviceHandlerByNameAndNamespace(
+        "Thing",
+        "parrotha.device.virtual"
+      );
+    if (thingDeviceHandler != null) {
+      return { id: thingDeviceHandler.id, joinName: "Unknown Device" };
+    }
+
+    return null;
+  }
+
+  private fingerprintScore(
+    fingerprint: Fingerprint,
+    deviceInfo: Map<string, string>
+  ): number {
+    if (deviceInfo == null || deviceInfo.size == 0) {
+      return 0;
+    }
+
+    let fingerprintItemCount = 0;
+    let deviceInfoItemCount = deviceInfo.size;
+    let matchCount = 0;
+    let weight = 0;
+
+    let mfrMatch = false;
+    let modelMatch = false;
+    let prodMatch = false;
+    let intgMatch = false;
+
+    if (isNotBlank(fingerprint.profileId)) {
+      fingerprintItemCount++;
+      if (fingerprint.profileId === deviceInfo.get("profileId")) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.endpointId)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.endpointId.toLowerCase() ===
+        deviceInfo.get("endpointId")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.inClusters)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.inClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 2;
+      } else if (
+        fingerprint.sortedInClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.outClusters)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.outClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 2;
+      } else if (
+        fingerprint.sortedOutClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.manufacturer)) {
+      fingerprintItemCount++;
+      if (fingerprint.manufacturer === deviceInfo.get("manufacturer")) {
+        matchCount++;
+        weight += 2;
+      }
+    }
+
+    if (isNotBlank(fingerprint.model)) {
+      fingerprintItemCount++;
+      if (fingerprint.model === deviceInfo.get("model")) {
+        modelMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.mfr)) {
+      fingerprintItemCount++;
+      if (fingerprint.mfr === deviceInfo.get("mfr")) {
+        mfrMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.prod)) {
+      fingerprintItemCount++;
+      if (fingerprint.prod === deviceInfo.get("prod")) {
+        prodMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.intg)) {
+      fingerprintItemCount++;
+      if (fingerprint.intg === deviceInfo.get("intg")) {
+        intgMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (
+      mfrMatch &&
+      modelMatch &&
+      prodMatch &&
+      intgMatch &&
+      fingerprintItemCount == 4
+    ) {
+      // matched all four, best match
+      return 100;
+    }
+
+    if (mfrMatch && modelMatch && prodMatch && fingerprintItemCount == 3) {
+      // matched all three, best match
+      return 99;
+    }
+
+    // similar match, all items, slightly less score
+    if (fingerprintItemCount == matchCount && weight > 4) {
+      return 98;
+    }
+
+    // similar match, all items, even less score
+    if (fingerprintItemCount == matchCount && weight > 3) {
+      return 97;
+    }
+
+    let score = Math.round((matchCount / fingerprintItemCount) * 100 + weight);
+
+    return score;
   }
 }

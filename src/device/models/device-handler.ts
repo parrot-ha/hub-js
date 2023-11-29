@@ -22,6 +22,35 @@ export class DeviceHandler {
   fingerprints: Fingerprint[];
   extensionId: string;
   type: DeviceHandlerType;
+  inlcudes: Array<string>;
+
+  public static buildFromObject(obj: any) {
+    let dh = new DeviceHandler();
+    dh.id = obj.id;
+    dh.file = obj.file;
+    dh.name = obj.name;
+    dh.namespace = obj.namespace;
+    dh.author = obj.author;
+    dh.tags = obj.tags;
+    dh.capabilityList = obj.capabilityList;
+    dh.commandList = obj.commandList;
+    dh.attributeList = obj.attributeList;
+    dh.fingerprints = [];
+    if (
+      obj.fingerprints != null &&
+      Array.isArray(obj.fingerprints) &&
+      obj.fingerprints.length > 0
+    ) {
+      for (let fingerprint of obj.fingerprints) {
+        dh.fingerprints.push(Fingerprint.buildFromObject(fingerprint));
+      }
+    }
+    dh.extensionId = obj.intg;
+    dh.type = obj.type as DeviceHandlerType;
+    dh.inlcudes = obj.includes;
+
+    return dh;
+  }
 
   public equalsIgnoreId(dh: DeviceHandler): boolean {
     if (dh == null) {
@@ -55,6 +84,9 @@ export class DeviceHandler {
       return false;
     }
     if (!arraysEqual(this.fingerprints, dh.fingerprints)) {
+      return false;
+    }
+    if (!arraysEqual(this.inlcudes, dh.inlcudes)) {
       return false;
     }
     return this.type === dh.type;

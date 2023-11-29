@@ -3,9 +3,9 @@ import { EntityWrapper } from "../entity/models/entity-wrapper";
 import { EventService } from "../hub/event-service";
 import { InstalledSmartApp } from "./models/installed-smart-app";
 import { LocationService } from "../hub/location-service";
-import { ServiceFactory } from "../hub/service-factory";
+import { EntityDelegate } from "../entity/entity-delegate";
 
-export class SmartAppDelegate {
+export class SmartAppDelegate extends EntityDelegate {
   private _eventService: EventService;
   private _locationService: LocationService;
   private _installedSmartApp: InstalledSmartApp;
@@ -16,7 +16,6 @@ export class SmartAppDelegate {
     "unschedule",
     "definition",
     "preferences",
-    "runIn",
   ];
 
   constructor(
@@ -24,13 +23,22 @@ export class SmartAppDelegate {
     eventService: EventService,
     locationService: LocationService
   ) {
+    super();
     this._installedSmartApp = installedSmartApp;
     this._eventService = eventService;
     this._locationService = locationService;
   }
 
   get sandboxMethods() {
-    return this._sandboxMethods;
+    return super.sandboxMethods.concat(this._sandboxMethods);
+  }
+
+  get entityType(): string {
+    return "SMARTAPP";
+  }
+
+  get entityId(): string {
+    return this._installedSmartApp.id;
   }
 
   public getSunriseAndSunset(): { sunrise: Date; sunset: Date } {
@@ -91,22 +99,6 @@ export class SmartAppDelegate {
 
   unschedule(handlerMethod: string): void {
     console.log("unschedule");
-  }
-
-  public runIn(
-    delayInSeconds: number,
-    handlerMethod: string,
-    options: any = {}
-  ): void {
-    ServiceFactory.getInstance()
-      .getScheduleService()
-      .runIn(
-        delayInSeconds,
-        "SMARTAPP",
-        this._installedSmartApp.id,
-        handlerMethod,
-        options
-      );
   }
 
   public definition(definitionInfo: any) {

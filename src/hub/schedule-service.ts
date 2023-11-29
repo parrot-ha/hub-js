@@ -1,10 +1,11 @@
-const schedule = require("node-schedule");
+const scheduler = require("node-schedule");
 import { randomUUID } from "crypto";
 import { EntityService } from "../entity/entity-service";
 import YAML from "yaml";
 import fs from "fs";
 
 type ScheduleType = {
+  jobKey: string;
   jobType: string;
   entityType: string;
   entityId: string;
@@ -26,11 +27,16 @@ export class ScheduleService {
   }
 
   public initialize(): void {
-    //TODO: load schedules from file system
+    //load schedules from file system
+    this.loadSchedules();
   }
 
   public shutdown(): Promise<any> {
-    return schedule.gracefulShutdown();
+    return scheduler.gracefulShutdown();
+  }
+
+  public getSchedules() {
+    return scheduler.scheduledJobs;
   }
 
   public runIn(
@@ -54,31 +60,9 @@ export class ScheduleService {
       }
     }
 
-    let runInFunction = function (
-      entityService: EntityService,
-      scheduleService: ScheduleService
-    ) {
-      try {
-        if (entityType === "SMARTAPP") {
-          entityService.runSmartAppMethod(
-            entityId,
-            handlerMethod,
-            options?.data
-          );
-        } else if (entityType === "DEVICE") {
-          entityService.runDeviceMethod(entityId, handlerMethod, options?.data);
-        }
-
-        // delete job
-        scheduleService.deleteJob(jobKey);
-      } catch (err) {
-        logger.warn("error with scheduled runIn", err);
-      }
-    }.bind(null, this._entityService, this);
-
     let scheduleRunTime = new Date(Date.now() + delayInSeconds * 1000);
-    const job = schedule.scheduleJob(scheduleRunTime, runInFunction);
     let jobSchedule: ScheduleType = {
+      jobKey: jobKey,
       jobType: "runOnce",
       entityType: entityType,
       entityId: entityId,
@@ -87,8 +71,118 @@ export class ScheduleService {
       schedule: scheduleRunTime.getTime(),
     };
 
+    const job = this.scheduleJob(jobSchedule);
+
     this._jobs.set(jobKey, job);
     this.saveSchedule(jobKey, jobSchedule);
+  }
+
+  public scheduleEvery(
+    schedule: string | Date,
+    entityType: string,
+    entityId: string,
+    handlerMethod: string,
+    options: any
+  ): void {
+    let jobKey: string;
+    if (options?.overwrite === false) {
+      jobKey = `runEvery_${entityType}_${entityId}_${handlerMethod}_${randomUUID()}`;
+    } else {
+      //find existing jobs and cancel them.
+      jobKey = `runEvery_${entityType}_${entityId}_${handlerMethod}`;
+      for (let key of this._jobs.keys()) {
+        if (key.startsWith(jobKey)) {
+          this._jobs.get(key).cancel();
+          this._jobs.delete(key);
+        }
+      }
+    }
+
+    let cronExpression: string;
+    if (typeof schedule === "string") {
+      let timestamp = Date.parse(schedule);
+      if (isNaN(timestamp)) {
+        cronExpression = schedule;
+      } else {
+        let scheduleDate = new Date(timestamp);
+        cronExpression = `${
+          scheduleDate.getSeconds
+        } ${scheduleDate.getMinutes()} ${scheduleDate.getHours()} * * *`;
+      }
+    } else if (schedule instanceof Date) {
+      cronExpression = `${
+        schedule.getSeconds
+      } ${schedule.getMinutes()} ${schedule.getHours()} * * *`;
+    } else {
+      throw new Error("Invalid argument for schedule");
+    }
+
+    let jobSchedule: ScheduleType = {
+      jobKey: jobKey,
+      jobType: "runEvery",
+      entityType: entityType,
+      entityId: entityId,
+      handlerMethod: handlerMethod,
+      data: options?.data || {},
+      schedule: cronExpression,
+    };
+    const job = this.scheduleJob(jobSchedule);
+    this._jobs.set(jobKey, job);
+    this.saveSchedule(jobKey, jobSchedule);
+  }
+
+  public scheduleDate(
+    date: Date,
+    entityType: string,
+    entityId: string,
+    handlerMethod: string,
+    options: any
+  ): void {
+    let cronExpression = `${
+      date.getSeconds
+    } ${date.getMinutes()} ${date.getHours()} * * *`;
+    this.scheduleEvery(
+      cronExpression,
+      entityType,
+      entityId,
+      handlerMethod,
+      options
+    );
+  }
+
+  private scheduleJob(jobSchedule: ScheduleType): any {
+    let schedule: any;
+    if (jobSchedule.jobType === "runOnce") {
+      schedule = new Date(jobSchedule.schedule);
+    } else if (jobSchedule.jobType === "runEvery") {
+      schedule = jobSchedule.schedule;
+    }
+    let runInFunction = function (
+      entityService: EntityService,
+      scheduleService: ScheduleService
+    ) {
+      try {
+        if (jobSchedule.entityType === "SMARTAPP") {
+          entityService.runSmartAppMethod(
+            jobSchedule.entityId,
+            jobSchedule.handlerMethod,
+            jobSchedule.data
+          );
+        } else if (jobSchedule.entityType === "DEVICE") {
+          entityService.runDeviceMethod(
+            jobSchedule.entityId,
+            jobSchedule.handlerMethod,
+            jobSchedule.data
+          );
+        }
+
+        // delete job
+        scheduleService.deleteJob(jobSchedule.jobKey);
+      } catch (err) {
+        logger.warn("error with scheduled runIn", err);
+      }
+    }.bind(null, this._entityService, this);
+    return scheduler.scheduleJob(schedule, runInFunction);
   }
 
   private deleteJob(jobKey: string) {
@@ -112,6 +206,49 @@ export class ScheduleService {
         (err: any) => {
           if (err) throw err;
         }
+      );
+    }
+  }
+
+  private _loadedSchedules = false;
+
+  private loadSchedules(): void {
+    if (this._loadedSchedules) {
+      return;
+    }
+    this._loadedSchedules = true;
+
+    try {
+      const schDirFiles: string[] = fs.readdirSync(
+        "userData/config/schedules/"
+      );
+      schDirFiles.forEach((schDirFile) => {
+        try {
+          if (schDirFile.endsWith(".yaml")) {
+            const data = fs.readFileSync(
+              `userData/config/schedules/${schDirFile}`,
+              "utf-8"
+            );
+            let parsedFile = YAML.parse(data);
+            let jobSchedule: ScheduleType = {
+              jobKey: parsedFile.jobKey,
+              jobType: parsedFile.jobType,
+              entityType: parsedFile.entityType,
+              entityId: parsedFile.entityId,
+              handlerMethod: parsedFile.handlerMethod,
+              data: parsedFile.data,
+              schedule: parsedFile.schedule,
+            };
+            let job = this.scheduleJob(jobSchedule);
+            this._jobs.set(jobSchedule.jobKey, job);
+          }
+        } catch (err) {
+          logger.warn(`Error loading file ${schDirFile}`);
+        }
+      });
+    } catch (err) {
+      logger.warn(
+        `Error loading files from userData/config/schedules/: ${err.message}`
       );
     }
   }

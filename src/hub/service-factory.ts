@@ -9,6 +9,7 @@ import { ScheduleService } from "./schedule-service";
 import { LocationFileDataStore } from "./location-file-data-store";
 import { IntegrationService } from "../integration/integration-service";
 import { IntegrationFileDataStore } from "../integration/integration-file-data-store";
+import { IntegrationRegistry } from "../integration/integration-registry";
 
 export class ServiceFactory {
   private static _instance: ServiceFactory;
@@ -26,7 +27,10 @@ export class ServiceFactory {
 
   getDeviceService(): DeviceService {
     if (!this.deviceService) {
-      this.deviceService = new DeviceService(new DeviceFileDataStore());
+      this.deviceService = new DeviceService(
+        new DeviceFileDataStore(),
+        this.getIntegrationRegistry()
+      );
     }
     return this.deviceService;
   }
@@ -85,11 +89,22 @@ export class ServiceFactory {
 
   public getIntegrationService(): IntegrationService {
     if (!this._integrationService) {
-      this._integrationService = new IntegrationService( new IntegrationFileDataStore(),
+      this._integrationService = new IntegrationService(
+        new IntegrationFileDataStore(),
+        this.getIntegrationRegistry(),
         this.getEntityService(),
         this.getDeviceService()
       );
     }
     return this._integrationService;
+  }
+
+  private _integrationRegistry: IntegrationRegistry;
+
+  public getIntegrationRegistry(): IntegrationRegistry {
+    if (!this._integrationRegistry) {
+      this._integrationRegistry = new IntegrationRegistry();
+    }
+    return this._integrationRegistry;
   }
 }

@@ -50,16 +50,16 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
     if (integrationConfiguration != null) {
       let setting: IntegrationSetting =
         integrationConfiguration.getSettingByName(configurationKey);
-      if (setting != null) {
-        if (configurationValue != null) {
-          setting.value = configurationValue.toString();
-        } else {
-          setting.value = null;
-        }
-        setting.type = type;
-        setting.multiple = multiple;
-        this.saveIntegrationConfiguration(integrationConfiguration);
+      if (!setting) {
+        setting = new IntegrationSetting();
+        setting.id = randomUUID();
+        setting.name = configurationKey;
+        setting.processValueTypeAndMultiple(configurationValue, type, multiple);
+        integrationConfiguration.addSetting(setting);
+      } else {
+        setting.processValueTypeAndMultiple(configurationValue, type, multiple);
       }
+      this.saveIntegrationConfiguration(integrationConfiguration);
     }
   }
 
@@ -193,31 +193,6 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
       );
     }
 
-    //    File integrationConfigDir = new File("config/integrations/");
-
-    //   if (integrationConfigDir.exists() && integrationConfigDir.isDirectory()) {
-    //       File[] integrationConfigFiles = integrationConfigDir.listFiles(pathname -> pathname.isFile() &&
-    //               pathname.getName().endsWith(".yaml"));
-    //       if (integrationConfigFiles != null && integrationConfigFiles.length > 0) {
-    //           Yaml yaml = new Yaml();
-    //           yaml.setBeanAccess(BeanAccess.FIELD);
-    //           for (File f : integrationConfigFiles) {
-    //               try {
-    //                   IntegrationConfiguration integration = yaml.load(new FileInputStream(f));
-    //                   integrationsTemp.put(integration.getId(), integration);
-    //               } catch (Exception e) {
-    //                   e.printStackTrace();
-    //               }
-    //           }
-    //       }
-    //   }
     this._integrations = integrationsTemp;
   }
-
-  // private void createDirectory(String directory) {
-  //   File directoryFile = new File(directory);
-  //   if (!directoryFile.exists()) {
-  //       directoryFile.mkdir();
-  //   }
-  // }
 }

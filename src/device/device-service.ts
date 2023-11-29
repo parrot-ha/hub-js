@@ -10,15 +10,33 @@ import { Attribute } from "./models/attribute";
 import { Capability } from "./models/capability";
 import { Capabilities } from "./models/capabilities";
 import { EntityLogger } from "../entity/entity-logger-service";
+import { isBlank } from "../utils/string-utils";
+import { DeviceHandlerInUseError } from "./errors/device-handler-in-use-error";
+import { HubAction } from "./models/hub-action";
+import { HubMultiAction } from "./models/hub-multi-action";
+import { Protocol } from "./models/protocol";
+import { HubResponse } from "./models/hub-response";
+import { IntegrationRegistry } from "../integration/integration-registry";
+import { difference } from "../utils/object-utils";
+
+const logger = require("../hub/logger-service")({ source: "DeviceService" });
 
 const fs = require("fs");
 const vm = require("vm");
 
 export class DeviceService {
-  private _deviceDataStore: DeviceDataStore;
+  public static PARENT_TYPE_SMART_APP: string = "ISA";
+  public static PARENT_TYPE_DEVICE: string = "DEV";
 
-  public constructor(deviceDataStore: DeviceDataStore) {
+  private _deviceDataStore: DeviceDataStore;
+  private _integrationRegistry: IntegrationRegistry;
+
+  public constructor(
+    deviceDataStore: DeviceDataStore,
+    integrationRegistry: IntegrationRegistry
+  ) {
     this._deviceDataStore = deviceDataStore;
+    this._integrationRegistry = integrationRegistry;
   }
 
   public getDeviceHandlers(): DeviceHandler[] {
@@ -41,6 +59,67 @@ export class DeviceService {
       integrationId,
       deviceNetworkId
     );
+  }
+
+  public getChildDevicesForDevice(parentDeviceId: string): Device[] {
+    return this._deviceDataStore.getDeviceChildDevices(parentDeviceId);
+  }
+
+  public addChildDevice(
+    parentId: string,
+    parentType: string,
+    namespace: string,
+    typeName: string,
+    deviceNetworkId: string,
+    properties: any
+  ): Device {
+    if (isBlank(deviceNetworkId)) {
+      throw new Error("IllegalArgument: Device Network ID not specified.");
+    }
+
+    let deviceHandler: DeviceHandler;
+    if (isBlank(namespace)) {
+      deviceHandler = this._deviceDataStore.getDeviceHandlerByName(typeName);
+    } else {
+      deviceHandler = this._deviceDataStore.getDeviceHandlerByNamespaceAndName(
+        namespace,
+        typeName
+      );
+    }
+
+    if (deviceHandler == null) {
+      throw new Error(
+        "UnknownDeviceType: Unable to find device type for namespace: " +
+          namespace +
+          " and name: " +
+          typeName
+      );
+    }
+
+    let device: Device = new Device();
+    device.deviceHandlerId = deviceHandler.id;
+    device.name = deviceHandler.name;
+    if (properties != null) {
+      if (properties.label != null) {
+        device.label = properties.label.toString();
+      }
+      if (properties.name != null) {
+        device.name = properties.name.toString();
+      }
+      if (properties.data != null && properties.data instanceof Object) {
+        device.data = properties.data;
+      }
+    }
+    device.deviceNetworkId = deviceNetworkId;
+    if (parentType === DeviceService.PARENT_TYPE_SMART_APP) {
+      device.parentInstalledSmartAppId = parentId;
+    } else if (parentType === DeviceService.PARENT_TYPE_DEVICE) {
+      device.parentDeviceId = parentId;
+    }
+
+    let deviceId: string = this._deviceDataStore.createDevice(device);
+
+    return this._deviceDataStore.getDevice(deviceId);
   }
 
   public deviceExists(
@@ -113,6 +192,10 @@ export class DeviceService {
     return this._deviceDataStore.getDevicesByCapability(capability);
   }
 
+  public getDevicesByDeviceHandler(deviceHandlerId: string): Device[] {
+    return this._deviceDataStore.getDevicesByDeviceHandler(deviceHandlerId);
+  }
+
   public addDevice(device: Device) {
     if (device.name == null) {
       device.name = this._deviceDataStore.getDeviceHandler(
@@ -173,9 +256,31 @@ export class DeviceService {
   }
 
   public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
-    //TODO: call integration to remove device, for now just delete from db
+    let device = this.getDevice(id);
+    let integrationId = device.integration?.id;
+    let deviceNetworkId = device.deviceNetworkId;
+
     return new Promise((resolve) => {
-      resolve(this._deviceDataStore.deleteDevice(id));
+      if (integrationId != null) {
+        //call integration to remove device
+        let integrationPromise = this._integrationRegistry.removeDeviceAsync(
+          integrationId,
+          deviceNetworkId,
+          force
+        );
+        if (integrationPromise != null) {
+          integrationPromise.then((result) => {
+            if (result) {
+              resolve(this._deviceDataStore.deleteDevice(id));
+            } else {
+              resolve(false);
+            }
+          });
+        }
+      } else {
+        // no integration, just delete from data store.
+        resolve(this._deviceDataStore.deleteDevice(id));
+      }
     });
   }
 
@@ -196,7 +301,7 @@ export class DeviceService {
   }
 
   public shutdown(): Promise<any> {
-    console.log("shutting down device service");
+    logger.info("shutting down device service");
     //TODO: handle extensions
     // if (extensionService != null) {
     //     extensionService.unregisterStateListener(this);
@@ -243,7 +348,7 @@ export class DeviceService {
             // only difference is the id,, so no changes
             //logger.debug("No changes for file " + fileName);
           } else {
-            //logger.debug("Changes for file " + fileName);
+            logger.debug("Changes for file " + fileName);
             newDHInfo.id = oldDHInfo.id;
             this._deviceDataStore.updateDeviceHandler(newDHInfo);
           }
@@ -277,7 +382,7 @@ export class DeviceService {
           );
           deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
         } catch (err) {
-          console.log("error processing system device handler files", err);
+          logger.warn("error processing system device handler files", err);
         }
       }
     });
@@ -299,6 +404,7 @@ export class DeviceService {
     return deviceHandlerInfo;
   }
 
+  // state of attribute
   updateDeviceState(event: ParrotEvent): void {
     let d: Device = this._deviceDataStore.getDevice(event.sourceId);
     let s: State = new State(event.name, event.value, event.unit);
@@ -306,6 +412,47 @@ export class DeviceService {
     //TODO: store state history in database
     //TODO: use write behind cache for saving device
     this._deviceDataStore.updateDevice(d);
+  }
+
+  
+  // state object
+  public saveDeviceState(
+    id: string,
+    originalState: any,
+    updatedState: any
+  ) {
+    let changes = difference(updatedState, originalState);
+    let device: Device = this.getDevice(id);
+    let existingState = device.state;
+    if (existingState) {
+      changes.removed.forEach((key) => delete existingState[key]);
+      Object.keys(changes.updated).forEach(
+        (key) => (existingState[key] = changes.updated[key])
+      );
+      Object.keys(changes.added).forEach(
+        (key) => (existingState[key] = changes.added[key])
+      );
+      this._deviceDataStore.saveDeviceState(id, existingState);
+    } else {
+      this._deviceDataStore.saveDeviceState(id, updatedState);
+    }
+  }
+
+  public getDeviceHandlerByNameAndNamespace(
+    name: string,
+    namespace: string
+  ): DeviceHandler {
+    for (let deviceHandler of this.getDeviceHandlers()) {
+      if (
+        deviceHandler.name != null &&
+        deviceHandler.name === name &&
+        deviceHandler.namespace != null &&
+        deviceHandler.namespace === namespace
+      ) {
+        return deviceHandler;
+      }
+    }
+    return null;
   }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
@@ -366,22 +513,87 @@ export class DeviceService {
     }
   }
 
+  public removeDeviceHandler(id: string): boolean {
+    let devicesInUse: Device[] = this.getDevicesByDeviceHandler(id);
+    if (devicesInUse?.length > 0) {
+      throw new DeviceHandlerInUseError("Device Handler in use", devicesInUse);
+    } else {
+      return this._deviceDataStore.deleteDeviceHandler(id);
+    }
+  }
+
+  public getDeviceHandlerSourceCode(id: string): string {
+    return this._deviceDataStore.getDeviceHandlerSourceCode(id);
+  }
+
+  public addDeviceHandlerSourceCode(sourceCode: string): string {
+    let deviceHandler = this.processDeviceHandlerSource(
+      "newDeviceHandler",
+      sourceCode,
+      DeviceHandlerType.USER
+    );
+    if (deviceHandler == null) {
+      throw new Error("No definition found.");
+    }
+    let dhId: string = this._deviceDataStore.createDeviceHandlerSourceCode(
+      sourceCode,
+      deviceHandler
+    );
+    return dhId;
+  }
+
+  public updateDeviceHandlerSourceCode(
+    id: string,
+    sourceCode: string
+  ): boolean {
+    let existingDeviceHandler: DeviceHandler = this.getDeviceHandler(id);
+    if (existingDeviceHandler) {
+      // compile source code so that any compile errors get thrown and we get any new definition changes
+      let updatedDeviceHandler: DeviceHandler = this.processDeviceHandlerSource(
+        existingDeviceHandler.file,
+        sourceCode,
+        existingDeviceHandler.type
+      );
+      this.updateDeviceHandlerIfChanged(
+        existingDeviceHandler,
+        updatedDeviceHandler
+      );
+      return this._deviceDataStore.updateDeviceHandlerSourceCode(
+        id,
+        sourceCode
+      );
+    }
+    throw new Error("Device Handler not found.");
+  }
+
+  private updateDeviceHandlerIfChanged(
+    oldDeviceHandler: DeviceHandler,
+    newDeviceHandler: DeviceHandler
+  ): void {
+    // if any changes are made to the new app excluding client id and client secret, then update.
+    // or if there are changes to the client id and client secret and the new app does not have it set to null
+    // this is so that it will not clear out client id and client secret that have been set by the user at runtime instead of
+    // being defined in the device handler definition.
+    if (!newDeviceHandler.equalsIgnoreId(oldDeviceHandler)) {
+      logger.debug("Changes for file " + newDeviceHandler.file);
+      newDeviceHandler.id = oldDeviceHandler.id;
+      this._deviceDataStore.updateDeviceHandler(newDeviceHandler);
+    } else {
+      // only difference is the id,, so no changes
+      logger.debug("No changes for file " + newDeviceHandler.file);
+    }
+  }
+
   private processDeviceHandlerSource(
     fileName: string,
     sourceCode: string,
     type: DeviceHandlerType = DeviceHandlerType.USER
   ): DeviceHandler {
-    let deviceMetadataDelegate: DeviceMetadataDelegate =
-      new DeviceMetadataDelegate();
-    let sandbox = this.buildMetadataSandbox(deviceMetadataDelegate);
-
-    vm.createContext(sandbox);
-    vm.runInContext(sourceCode, sandbox, { filename: fileName });
-
+    let metadataValue = this.getDeviceHandlerMetadata(sourceCode, fileName);
     let deviceHandler = new DeviceHandler();
 
-    if (deviceMetadataDelegate.metadataValue?.definition) {
-      let definition = deviceMetadataDelegate.metadataValue.definition;
+    if (metadataValue?.definition) {
+      let definition = metadataValue.definition;
       if (definition.deviceHandlerId) {
         deviceHandler.id = definition.deviceHandlerId;
       } else {
@@ -393,12 +605,43 @@ export class DeviceService {
       deviceHandler.author = definition.author;
       deviceHandler.capabilityList = definition.capabilities;
       deviceHandler.commandList = definition.commands;
+      deviceHandler.fingerprints = definition.fingerprints;
       deviceHandler.file = fileName;
       deviceHandler.type = type;
+      deviceHandler.inlcudes = metadataValue.includes;
+
       return deviceHandler;
     } else {
       throw new Error(`No device definition found for file ${fileName}`);
     }
+  }
+
+  private getDeviceHandlerMetadata(sourceCode: string, fileName: string) {
+    let deviceMetadataDelegate: DeviceMetadataDelegate =
+      new DeviceMetadataDelegate();
+    let sandbox = this.buildMetadataSandbox(deviceMetadataDelegate);
+
+    try {
+      vm.createContext(sandbox);
+      vm.runInContext(sourceCode, sandbox, { filename: fileName });
+    } catch (err) {
+      if (err.stack.includes("SyntaxError:")) {
+        // problem with the code
+
+        let errStack = err.stack.substring(
+          0,
+          err.stack.indexOf("at DeviceService.processDeviceHandlerSource")
+        );
+        //TODO: better way to handle this?
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        errStack = errStack.substring(0, errStack.lastIndexOf("at "));
+        err.message = errStack.trim();
+      }
+      throw err;
+    }
+
+    return deviceMetadataDelegate.metadataValue;
   }
 
   private buildMetadataSandbox(
@@ -413,5 +656,109 @@ export class DeviceService {
     });
 
     return sandbox;
+  }
+
+  public processReturnObj(device: Device, retObj: any): void {
+    if (retObj === null || retObj === undefined) {
+      return;
+    }
+    if (Array.isArray(retObj) && retObj.length > 0) {
+      this.processArrayRetObj(device, retObj);
+    } else if (typeof retObj === "string") {
+      this.processStringRetObj(device, retObj);
+    } else if (retObj instanceof HubAction) {
+      let integrationId: string = device.integration?.id;
+      let hubAction: HubAction = retObj as HubAction;
+      hubAction.dni = hubAction.dni ?? device.deviceNetworkId;
+      if (hubAction.options?.callback) {
+        hubAction.options.callbackEntityId = device.id;
+        hubAction.options.callbackEntityType = "DEV";
+      }
+      this.processHubAction(integrationId, hubAction);
+    } else if (retObj instanceof HubMultiAction) {
+      this.processArrayRetObj(device, retObj.actions);
+    } else if (retObj != null) {
+      logger.warn("ToDo: process this retObj: " + retObj.getClass().getName());
+    }
+  }
+
+  private processArrayRetObj(
+    device: Device,
+    arrayRetObj: Array<any>,
+    arrayRetObjIndex: number = 0
+  ) {
+    if (arrayRetObjIndex < arrayRetObj.length) {
+      let delay = 0;
+      let obj = arrayRetObj[arrayRetObjIndex];
+      if (typeof obj === "string") {
+        if (obj.startsWith("delay")) {
+          delay = parseInt(obj.substring("delay".length).trim());
+        } else {
+          this.processStringRetObj(device, obj);
+        }
+      } else if (obj instanceof HubAction) {
+        if (obj.action?.startsWith("delay")) {
+          delay = parseInt(obj.action.substring("delay".length).trim());
+        } else {
+          obj.dni = obj.dni ?? device.deviceNetworkId;
+          this.processHubAction(device.integration?.id, obj);
+        }
+      } else {
+        logger.warn("ToDo: process this: " + typeof obj);
+      }
+
+      if (delay > 0) {
+        setTimeout(
+          this.processArrayRetObj.bind(this),
+          delay,
+          device,
+          arrayRetObj,
+          arrayRetObjIndex + 1
+        );
+      } else {
+        this.processArrayRetObj(device, arrayRetObj, arrayRetObjIndex + 1);
+      }
+    }
+  }
+
+  private processStringRetObj(device: Device, obj: string): void {
+    let msg: string = obj;
+    // st = smartthings, ph = Parrot Hub
+    if (/(st |he |ph |raw |zdo ).*/.test(msg)) {
+      let integrationId: string = device.integration?.id;
+      // send to integration or zigbee network.
+      this._integrationRegistry.processAction(
+        integrationId,
+        new HubAction(msg, Protocol.ZIGBEE, device.deviceNetworkId, null)
+      );
+    } else if (msg.startsWith("delay")) {
+      // this should be handled earlier
+      return;
+    } else {
+      // we don't have a protocol, so send to integration if it exists
+      if (device.integration) {
+        let integrationId = device.integration.id;
+        this._integrationRegistry.processAction(
+          integrationId,
+          new HubAction(msg, Protocol.OTHER, device.deviceNetworkId, null)
+        );
+      }
+    }
+    //TODO: process other types of messages
+  }
+
+  public processHubAction(
+    integrationId: string,
+    action: HubAction
+  ): HubResponse {
+    if (action != null) {
+      if (action.action != null && action.action.startsWith("delay")) {
+        // this should have been take care of earlier
+        return null;
+      } else {
+        return this._integrationRegistry.processAction(integrationId, action);
+      }
+    }
+    return null;
   }
 }

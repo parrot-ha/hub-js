@@ -9,9 +9,9 @@ export class Device {
   label: string | undefined;
   deviceNetworkId: string | undefined;
   parentDeviceId: string | undefined;
-  parentSmartApp: string | undefined;
+  parentInstalledSmartAppId: string | undefined;
   private _integration: Integration;
-  state: any | undefined;
+  private _state: any | undefined;
   data: any | undefined;
   private _currentStates: Map<string, State>;
   settings: DeviceSetting[] | undefined;
@@ -20,6 +20,17 @@ export class Device {
 
   // transient value
   private _nameToSettingMap: Map<string, DeviceSetting>;
+
+  public get state() {
+    if (this._state === null || typeof this._state === "undefined") {
+      this._state = {};
+    }
+    return this._state;
+  }
+
+  public set state(state: any) {
+    this._state = state;
+  }
 
   public get displayName() {
     if (!this.label) {
@@ -44,7 +55,7 @@ export class Device {
   }
 
   public getNameToSettingMap(): Map<string, DeviceSetting> {
-    if (this._nameToSettingMap == null && this.settings != null) {
+    if (!this._nameToSettingMap && this.settings) {
       let newNameToSettingMap: Map<string, DeviceSetting> = new Map<
         string,
         DeviceSetting
@@ -98,7 +109,7 @@ export class Device {
       label: this.label,
       deviceNetworkId: this.deviceNetworkId,
       parentDeviceId: this.parentDeviceId,
-      parentSmartApp: this.parentSmartApp,
+      parentInstalledSmartAppId: this.parentInstalledSmartAppId,
       integration: this.integration,
       state: this.state,
       data: this.data,
@@ -118,12 +129,21 @@ export class Device {
       d.label = json.label;
       d.deviceNetworkId = json.deviceNetworkId;
       d.parentDeviceId = json.parentDeviceId;
-      d.parentSmartApp = json.parentSmartApp;
+      d.parentInstalledSmartAppId = json.parentInstalledSmartAppId;
       d.integration = json.integration;
       d.state = json.state;
       d.data = json.data;
-      d.currentStates = new Map(Object.entries(json.currentStates));
-      d.settings = json.settings;
+      if (json.currentStates) {
+        d.currentStates = new Map(Object.entries(json.currentStates));
+      } else {
+        d.currentStates = new Map();
+      }
+      if (json.settings && Array.isArray(json.settings)) {
+        json.settings.forEach((setting: any) => {
+          d.addSetting(DeviceSetting.buildFromObject(setting));
+        });
+      }
+
       d.created = json.created;
       d.updated = json.updated;
     }

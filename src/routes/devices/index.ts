@@ -7,6 +7,7 @@ import { Capability } from "../../device/models/capability";
 import { Capabilities } from "../../device/models/capabilities";
 import { DeviceSetting } from "../../device/models/device-setting";
 import { State } from "../../device/models/state";
+import { DeviceHandler } from "../../device/models/device-handler";
 
 const express = require("express");
 
@@ -139,20 +140,45 @@ module.exports = function (
   });
 
   router.get("/:id", (req: Request, res: Response) => {
-    res.json(deviceService.getDevice(req.params.id));
+    let id: string = req.params.id;
+    let basic: boolean = "true" === req.query.basic;
+    let device: Device = deviceService.getDevice(id);
+    if (!device) {
+      res.status(404).end();
+    } else {
+      let model: any = {
+        id: device.id,
+        name: device.name,
+        label: device.label,
+        integrationId: device.integration?.id,
+      };
+      if (!basic) {
+        let deviceHandler: DeviceHandler = deviceService.getDeviceHandler(
+          device.deviceHandlerId
+        );
+        if (deviceHandler) {
+          model.type = deviceHandler.name;
+        }
+        model.deviceHandlerId = device.deviceHandlerId;
+        model.deviceNetworkId = device.deviceNetworkId;
+        model.created = device.created;
+        model.updated = device.updated;
+      }
+      res.json(model);
+    }
   });
 
   // remove a device
   router.delete("/:id", (req: Request, res: Response) => {
     let id: string = req.params.id;
-    let force: boolean = "true" === req.params.force;
+    let force: boolean = "true" === req.query.force;
     let cancel: boolean = "true" === req.query.cancel;
     let longPoll: boolean = "true" === req.query.poll;
     if (cancel) {
       deviceService.cancelRemoveDeviceAsync(id);
       res.status(202).end();
     } else {
-      let deviceRemovedPromise: Promise<any> = deviceService.removeDeviceAsync(
+      let deviceRemovedPromise: Promise<boolean> = deviceService.removeDeviceAsync(
         id,
         force
       );
@@ -187,14 +213,18 @@ module.exports = function (
       capabilityList?.forEach((capabilityName: string) => {
         let capability: Capability = Capabilities.getCapability(capabilityName);
         capability?.commands?.forEach((command: Command) => {
-          // TODO: check for existing command and don't add duplicates
-          commands.push(command);
+          // check for existing command and don't add duplicates
+          if (commands.findIndex((cmd) => cmd.name === command.name) < 0) {
+            commands.push(command);
+          }
         });
       });
       let commandList: Command[] = deviceHandlerInfo.commandList;
       if (commandList != null) {
         commandList.forEach((command: Command) => {
-          commands.push(command);
+          if (commands.findIndex((cmd) => cmd.name === command.name) < 0) {
+            commands.push(command);
+          }
         });
       }
     }
@@ -226,7 +256,11 @@ module.exports = function (
     let id: string = req.params.id;
     let device: Device = deviceService.getDevice(id);
     let settings: Map<string, DeviceSetting> = device.getNameToSettingMap();
-    res.json(settings);
+    if (!settings) {
+      res.json({});
+    } else {
+      res.json(Object.fromEntries(settings));
+    }
   });
 
   router.get("/:id/states", (req: Request, res: Response) => {

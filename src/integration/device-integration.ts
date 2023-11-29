@@ -1,6 +1,7 @@
 import { Protocol } from "../device/models/protocol";
 import { HubAction } from "../device/models/hub-action";
 import { AbstractIntegration } from "./abstract-integration";
+import { HubResponse } from "../device/models/hub-response";
 
 export abstract class DeviceIntegration extends AbstractIntegration {
   public abstract removeIntegrationDeviceAsync(
@@ -8,7 +9,7 @@ export abstract class DeviceIntegration extends AbstractIntegration {
     force: boolean
   ): Promise<boolean>;
 
-  public abstract processAction(action: HubAction): string;
+  public abstract processAction(action: HubAction): HubResponse;
 
   // override if you want to provide tags to filter device handlers by
   public get tags(): string[] {

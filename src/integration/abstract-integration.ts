@@ -24,13 +24,13 @@ export abstract class AbstractIntegration extends EventEmitter {
   public abstract stop(): Promise<any>;
 
   public sendEvent(integrationEvent: IntegrationEvent): void {
+    integrationEvent.integrationId = this.id;
     this.emit("event", integrationEvent);
   }
 
-  public getLabel(): string {
-    let label: string = this._integrationService.getIntegrationConfigurationById(
-      this.id
-    ).label;
+  public get label(): string {
+    let label: string =
+      this._integrationService.getIntegrationConfigurationById(this.id).label;
     return label || this.name;
   }
 
@@ -77,14 +77,14 @@ export abstract class AbstractIntegration extends EventEmitter {
 
   public updateSetting(
     key: string,
-    value: string,
+    value: any,
     type: string,
     multiple: boolean
   ): void {
     this._integrationService.updateIntegrationSettingValue(
       this._id,
       key,
-      value,
+      value ? value.toString() : null,
       type,
       multiple
     );
@@ -94,6 +94,7 @@ export abstract class AbstractIntegration extends EventEmitter {
     let settingInt: number = null;
     try {
       settingInt = parseInt(this.getSettingAsString(key));
+      if (isNaN(settingInt)) settingInt = defaultValue;
     } catch (err) {
       if (defaultValue != null) {
         settingInt = defaultValue;

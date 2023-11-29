@@ -86,6 +86,17 @@ export class IntegrationConfiguration {
     return this.getNameToSettingMap()?.get(name);
   }
 
+  public addSetting(setting: IntegrationSetting): void {
+    if (!this._settings) {
+      this._settings = [];
+    }
+    if (this._nameToSettingMap == null) {
+      this._nameToSettingMap = new Map<string, IntegrationSetting>();
+    }
+    this._settings.push(setting);
+    this._nameToSettingMap.set(setting.name, setting);
+  }
+
   public getDisplayValues(): any {
     let integrationMap: any = {
       id: this.id,

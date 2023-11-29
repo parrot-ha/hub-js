@@ -1,10 +1,10 @@
 import { Device } from "./models/device";
-import { DeviceHandler } from "./models/device-handler";
+import { DeviceHandler, DeviceHandlerType } from "./models/device-handler";
 import { DeviceDataStore } from "./device-data-store";
 import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
-import { isBlank, deleteWhitespace } from "../utils/string-utils";
+import { isBlank, deleteWhitespace, isNotEmpty } from "../utils/string-utils";
 const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
@@ -13,6 +13,8 @@ export class DeviceFileDataStore implements DeviceDataStore {
   private _deviceHandlers: Map<string, DeviceHandler>;
   private _devices: Map<string, Device>;
   private _deviceDNItoIdMap: Map<string, string>;
+  private _childDeviceMap: Map<string, Set<string>>;
+  private _appChildDeviceMap: Map<string, Set<string>>;
 
   public getDevices(): Device[] {
     return Array.from(this.getDeviceCache().values());
@@ -63,6 +65,16 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return device;
   }
 
+  getDevicesByDeviceHandler(deviceHandlerId: string): Device[] {
+    if (isBlank(deviceHandlerId)) {
+      return [];
+    } else {
+      return this.getDevices().filter(
+        (device) => device.deviceHandlerId === deviceHandlerId
+      );
+    }
+  }
+
   public updateDevice(device: Device): void {
     let existingDevice: Device = this.getDevice(device.id);
     if (existingDevice != null) {
@@ -95,6 +107,22 @@ export class DeviceFileDataStore implements DeviceDataStore {
     } else {
       throw new Error("Device does not exist");
     }
+  }
+
+  saveDeviceState(deviceId: string, state: any): boolean {
+    let device: Device = this.getDeviceCache().get(deviceId);
+    if (device != null) {
+      //serialize state to json and back to filter out any bad values
+      //https://docs.smartthings.com/en/latest/smartapp-developers-guide/state.html#persistence-model
+      if (state != null) {
+        device.state = JSON.parse(JSON.stringify(state));
+      }
+      this.updateDevice(device);
+    } else {
+      throw new Error("Device does not exist");
+    }
+
+    return true;
   }
 
   public createDevice(device: Device): string {
@@ -134,12 +162,55 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return true;
   }
 
+  public getDeviceChildDevices(parentDeviceId: string): Device[] {
+    let childDevices: Device[] = [];
+    let childDeviceIds: Set<string> =
+      this.getChildDeviceMap().get(parentDeviceId);
+
+    if (childDeviceIds != null && childDeviceIds.size > 0) {
+      childDeviceIds.forEach((childDeviceId) => {
+        let childDevice: Device = this.getDevice(childDeviceId);
+        if (childDevice != null) {
+          childDevices.push(childDevice);
+        }
+      });
+    }
+    return childDevices;
+  }
+
+  private getAppChildDeviceMap(): Map<string, Set<string>> {
+    if (this._appChildDeviceMap == null) {
+      this.loadDevices();
+    }
+    return this._appChildDeviceMap;
+  }
+
+  private getChildDeviceMap(): Map<string, Set<string>> {
+    if (this._childDeviceMap == null) {
+      this.loadDevices();
+    }
+    return this._childDeviceMap;
+  }
+
   private addDeviceToCache(device: Device) {
     this.getDeviceCache().set(device.id, device);
     this.getDeviceDNItoIDMap().set(
       (device.integration?.id || "null") + ":" + device.deviceNetworkId,
       device.id
     );
+    if (isNotEmpty(device.parentDeviceId)) {
+      this.addChildDevice(
+        this.getChildDeviceMap(),
+        device.parentDeviceId,
+        device.id
+      );
+    } else if (isNotEmpty(device.parentInstalledSmartAppId)) {
+      this.addChildDevice(
+        this.getAppChildDeviceMap(),
+        device.parentInstalledSmartAppId,
+        device.id
+      );
+    }
   }
 
   private getDeviceCache(): Map<string, Device> {
@@ -163,6 +234,14 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
     let newDevices: Map<string, Device> = new Map<string, Device>();
     let newDeviceDNItoIdMap: Map<string, string> = new Map<string, string>();
+    let newChildDeviceMap: Map<string, Set<string>> = new Map<
+      string,
+      Set<string>
+    >();
+    let newAppChildDeviceMap: Map<string, Set<string>> = new Map<
+      string,
+      Set<string>
+    >();
 
     try {
       const devDirFiles: string[] = fs.readdirSync("userData/config/devices/");
@@ -182,9 +261,22 @@ export class DeviceFileDataStore implements DeviceDataStore {
                 device.deviceNetworkId.toUpperCase(),
               device.id
             );
+            if (isNotEmpty(device.parentDeviceId)) {
+              this.addChildDevice(
+                newChildDeviceMap,
+                device.parentDeviceId,
+                device.id
+              );
+            } else if (isNotEmpty(device.parentInstalledSmartAppId)) {
+              this.addChildDevice(
+                newAppChildDeviceMap,
+                device.parentInstalledSmartAppId,
+                device.id
+              );
+            }
           }
         } catch (err) {
-          logger.warn(`Error loading file ${devDirFile}`);
+          logger.warn(`Error loading file ${devDirFile}`, err);
         }
       });
     } catch (err) {
@@ -194,6 +286,20 @@ export class DeviceFileDataStore implements DeviceDataStore {
     }
     this._devices = newDevices;
     this._deviceDNItoIdMap = newDeviceDNItoIdMap;
+    this._childDeviceMap = newChildDeviceMap;
+    this._appChildDeviceMap = newAppChildDeviceMap;
+  }
+
+  private addChildDevice(
+    childDeviceMap: Map<string, Set<string>>,
+    parentId: string,
+    childDeviceId: string
+  ): void {
+    if (childDeviceMap.has(parentId)) {
+      childDeviceMap.get(parentId).add(childDeviceId);
+    } else {
+      childDeviceMap.set(parentId, new Set<string>([childDeviceId]));
+    }
   }
 
   private saveDeviceToFile(device: Device) {
@@ -271,6 +377,77 @@ export class DeviceFileDataStore implements DeviceDataStore {
     return deviceHandlerSourceList;
   }
 
+  deleteDeviceHandler(id: string): boolean {
+    let sa: DeviceHandler = this.getDeviceHandler(id);
+    if (DeviceHandlerType.USER === sa.type) {
+      //delete source file
+      try {
+        if (fs.existsSync(sa.file)) {
+          fs.unlinkSync(sa.file);
+        }
+      } catch (err) {
+        logger.warn("Unable to delete device handler " + id);
+        return false;
+      }
+    }
+
+    this.getDeviceHandlerCache().delete(id);
+    this.saveDeviceHandlers();
+    return true;
+  }
+
+  getDeviceHandlerSourceCode(id: string): string {
+    let deviceHandler: DeviceHandler = this.getDeviceHandler(id);
+    return fs.readFileSync(deviceHandler.file)?.toString();
+  }
+
+  updateDeviceHandlerSourceCode(id: string, sourceCode: string): boolean {
+    let deviceHandler: DeviceHandler = this.getDeviceHandler(id);
+    if (deviceHandler?.type == DeviceHandlerType.USER) {
+      fs.writeFile(deviceHandler.file, sourceCode, (err: any) => {
+        if (err) throw err;
+        return true;
+      });
+    }
+
+    return false;
+  }
+
+  createDeviceHandlerSourceCode(
+    sourceCode: string,
+    deviceHandler: DeviceHandler
+  ): string {
+    let fileName: string = `userData/deviceHandlers/${deviceHandler.id}.js`;
+    deviceHandler.file = fileName;
+    try {
+      fs.writeFile(fileName, sourceCode, (err: any) => {
+        if (err) throw err;
+        // save device handler definition
+        this.createDeviceHandler(deviceHandler);
+      });
+      return deviceHandler.id;
+    } catch (err) {
+      logger.warn("error when saving deviceHandler file", err);
+      return null;
+    }
+  }
+
+  public getDeviceHandlerByNamespaceAndName(
+    namespace: string,
+    name: string
+  ): DeviceHandler {
+    return this.getDeviceHandlers().find(
+      (deviceHandler) =>
+        deviceHandler.namespace === namespace && deviceHandler.name === name
+    );
+  }
+
+  public getDeviceHandlerByName(name: string): DeviceHandler {
+    return this.getDeviceHandlers().find(
+      (deviceHandler) => deviceHandler.name === name
+    );
+  }
+
   private saveDeviceHandlers(): void {
     if (this.getDeviceHandlerCache()?.size > 0) {
       try {
@@ -303,7 +480,8 @@ export class DeviceFileDataStore implements DeviceDataStore {
         let parsedFile = YAML.parse(deviceHandlersConfigFile);
         if (parsedFile && Array.isArray(parsedFile)) {
           parsedFile.forEach((fileDH) => {
-            let deviceHandler: DeviceHandler = fileDH as DeviceHandler;
+            let deviceHandler: DeviceHandler =
+              DeviceHandler.buildFromObject(fileDH);
             deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
           });
         }

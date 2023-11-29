@@ -1,18 +1,26 @@
 import { CommandArgument } from "./models/command-argument";
 import { Command } from "./models/command";
+import { createStandardInput } from "../entity/entity-preferences-helper";
+import { Fingerprint } from "./models/fingerprint";
+import { Attribute } from "./models/attribute";
 
 export class DeviceMetadataDelegate {
   private _includeDefinition: boolean;
   private _includePreferences: boolean;
   private _sandboxMethods: string[] = [
+    "include",
     "metadata",
     "definition",
     "preferences",
+    "section",
     "capability",
+    "attribute",
     "command",
     "input",
+    "fingerprint",
   ];
   metadataValue: any = {
+    includes: [],
     definition: {
       capabilities: [],
       attributes: [],
@@ -36,6 +44,19 @@ export class DeviceMetadataDelegate {
     return this._sandboxMethods;
   }
 
+  public include(includeValue: string) {
+    this.metadataValue.includes.push(includeValue);
+  }
+
+  public fingerprint(value: any) {
+    let fingerprints = this.metadataValue.definition.fingerprints;
+    if (fingerprints == null) {
+      fingerprints = [];
+      this.metadataValue.definition.fingerprints = fingerprints;
+    }
+    fingerprints.push(Fingerprint.buildFromObject(value));
+  }
+
   public section(title: string, closure: Function) {
     this.createTemporarySection();
     this.temporarySection.title = title;
@@ -45,24 +66,41 @@ export class DeviceMetadataDelegate {
     this.addTemporarySection();
   }
 
-  public input(name: string, type: string, additionalOptions: any) {
+  public input(param1: any, param2: any, param3: any) {
     this.createTemporarySection();
-    console.log("input name", name, "type", type, "ao", additionalOptions);
     let tempInput: any;
-    if (additionalOptions) {
-      tempInput = additionalOptions;
-    } else {
-      tempInput = {};
-    }
-    if (additionalOptions) {
-      for (const key in additionalOptions) {
-        tempInput[key] = additionalOptions[key];
+
+    if (typeof param1 === "string" && typeof param2 === "string") {
+      if (param3 && typeof param3 === "object") {
+        param3.name = param1;
+        param3.type = param2;
+      } else {
+        param3 = { name: param1, type: param2 };
       }
+      tempInput = createStandardInput(param3);
+    } else if (typeof param1 === "object") {
+      tempInput = createStandardInput(param1);
+    } else {
+      tempInput = createStandardInput({});
     }
-    tempInput.name = name;
-    tempInput.type = type;
     this.temporarySection.input.push(tempInput);
     this.temporarySection.body.push(tempInput);
+  }
+
+  public attribute(
+    attributeName: string,
+    attributeType: string,
+    possibleValues: Array<any>
+  ) {
+    if (!attributeName || !attributeType) {
+      return;
+    }
+    let attribute: Attribute = new Attribute(
+      attributeType,
+      attributeName,
+      possibleValues
+    );
+    this.metadataValue.definition.attributes.push(attribute);
   }
 
   public command(commandName: string, commandArguments: any[]) {
@@ -105,7 +143,7 @@ export class DeviceMetadataDelegate {
       this.metadataValue.definition.attributes = [];
       this.metadataValue.definition.commands = [];
       this.metadataValue.definition.fingerprints = [];
-      closure();
+      if (closure) closure();
     }
   }
 
