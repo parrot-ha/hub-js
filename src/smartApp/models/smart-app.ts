@@ -26,7 +26,7 @@ export class SmartApp {
   oAuthRedirectURI: string | undefined;
   oAuthDisplayName: string | undefined;
   oAuthDisplayLink: string | undefined;
-  oAuthTokens: OAuthToken[]
+  oAuthTokens: OAuthToken[];
 
   extensionId: string;
   type: SmartAppType;
@@ -36,6 +36,45 @@ export class SmartApp {
       this.oAuthClientId?.replace(/\s/g, "")?.length > 0 &&
       this.oAuthClientSecret?.replace(/\s/g, "")?.length > 0
     );
+  }
+
+  public static buildFromObject(obj: any) {
+    let sa = new SmartApp();
+    sa.id = obj.id;
+    sa.file = obj.file;
+    sa.name = obj.name;
+    sa.namespace = obj.namespace;
+    sa.author = obj.author;
+    sa.description = obj.description;
+    sa.category = obj.category;
+    sa.installOnOpen = obj.installOnOpen;
+    sa.documentationLink = obj.documentationLink;
+    sa.iconUrl = obj.iconUrl;
+    sa.iconX2Url = obj.iconX2Url;
+    sa.iconX3Url = obj.iconX3Url;
+    sa.parent = obj.parent;
+
+    sa.oAuthClientId = obj.oAuthClientId;
+    sa.oAuthClientSecret = obj.oAuthClientSecret;
+    sa.oAuthRedirectURI = obj.oAuthRedirectURI;
+    sa.oAuthDisplayName = obj.oAuthDisplayName;
+    sa.oAuthDisplayLink = obj.oAuthDisplayLink;
+
+    sa.oAuthTokens = [];
+    if (
+      obj.oAuthTokens != null &&
+      Array.isArray(obj.oAuthTokens) &&
+      obj.oAuthTokens.length > 0
+    ) {
+      for (let oAuthToken of obj.oAuthTokens) {
+        sa.oAuthTokens.push(OAuthToken.buildFromObject(oAuthToken));
+      }
+    }
+    sa.extensionId = obj.extensionId;
+
+    sa.type = obj.type as SmartAppType;
+
+    return sa;
   }
 
   public equalsIgnoreId(

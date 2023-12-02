@@ -1,6 +1,6 @@
 export class Mode {
   private _id: string;
-  _name: string;
+  private _name: string;
   constructor(id: string, name: string) {
     this._id = id;
     this._name = name;

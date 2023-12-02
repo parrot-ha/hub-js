@@ -20,6 +20,7 @@ import { HubAction } from "../device/models/hub-action";
 import { Fingerprint } from "../device/models/fingerprint";
 import { ZigBeeUtils } from "../utils/zigbee-utils";
 import { DataType } from "../utils/data-type";
+import { WebServiceResponse } from "./models/web-service-response";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -149,6 +150,98 @@ export class EntityService extends EventEmitter {
     return false;
   }
 
+  public processSmartAppWebRequest(
+    id: string,
+    httpMethod: string,
+    path: string,
+    body: string,
+    params: any,
+    headers: any
+  ): WebServiceResponse {
+    let authenticated: boolean = false;
+
+    // if (id == null) {
+    //     // check if we can get the id from the bearer token
+    //     String bearerToken = getBearerToken(headers);
+    //     if (bearerToken != null) {
+    //         List<String> installedAutomationAppIds = automationAppService.getInstalledAutomationAppsByToken(bearerToken);
+    //         if (installedAutomationAppIds != null && installedAutomationAppIds.size() == 1) {
+    //             id = installedAutomationAppIds.get(0);
+    //             // set authenticated to true since we know we have a valid bearer token
+    //             authenticated = true;
+    //         }
+    //     }
+    // }
+    let installedSmartApp: InstalledSmartApp =
+      this._smartAppService.getInstalledSmartApp(id);
+
+    if (installedSmartApp != null) {
+      // check if we have an access token
+      if (!authenticated && params != null) {
+        // Object paramAccessToken = params.get("access_token");
+        // if (paramAccessToken instanceof String) {
+        //     Map state = installedAutomationApp.getState();
+        //     if (state != null) {
+        //         Object accessToken = state.get("accessToken");
+        //         if (accessToken instanceof String) {
+        //             if (accessToken.equals(paramAccessToken)) {
+        //                 authenticated = true;
+        //             }
+        //         }
+        //     }
+        // }
+      }
+      if (!authenticated) {
+        // check for bearer token
+        // String bearerToken = getBearerToken(headers);
+        // if (bearerToken != null) {
+        //     // check bearer token is valid
+        //     List<String> installedAutomationAppIds = automationAppService.getInstalledAutomationAppsByToken(bearerToken);
+        //     if (installedAutomationAppIds != null && installedAutomationAppIds.contains(id)) {
+        //         authenticated = true;
+        //     }
+        // }
+      }
+
+      if (!authenticated) {
+        return new WebServiceResponse({
+          status: 401,
+          contentType: "application/xhtml+xml",
+          data: "<oauth><error_description>Invalid or missing access token</error_description><error>invalid_token</error></oauth>",
+        });
+      }
+
+      // Map<String, Map<String, String>> mappings = getInstalledAutomationAppMapping(id, params);
+      // if (mappings != null) {
+      //     for (String key : mappings.keySet()) {
+      //         if (path.equalsIgnoreCase(key)) {
+      //             // we have a match
+      //             if (mappings.get(key) != null) {
+      //                 String methodName = mappings.get(key).get(httpMethod);
+      //                 try {
+      //                     Object response = runInstalledAutomationAppMethodWithParamsAndReturn(id, params,
+      //                             new Request(httpMethod, headers, body),
+      //                             methodName, (Object) null);
+      //                     if (response instanceof Response) {
+      //                         return (Response) response;
+      //                     } else if (response instanceof Map) {
+      //                         return new Response(Map.of("data", new JsonBuilder(response).toString()));
+      //                     }
+      //                 } catch (Exception e) {
+      //                     e.printStackTrace();
+      //                 }
+      //                 return null;
+      //             }
+      //         }
+      //     }
+
+      //     // TODO: return 404 if we didn't find a mapping
+      // }
+    }
+
+    return new WebServiceResponse({ status: 404 });
+  }
+
   public async runSmartAppMethod(
     id: string,
     methodName: string,
@@ -272,12 +365,14 @@ export class EntityService extends EventEmitter {
       installedSmartApp.id,
       installedSmartApp.displayName
     );
-    sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
+    //sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
       this._eventService,
-      this._locationService
+      this._locationService,
+      this._smartAppService
     );
+    sandbox.state = smartAppDelegate.state;
 
     smartAppDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (smartAppDelegate as any)[sandboxMethod].bind(
@@ -378,7 +473,9 @@ export class EntityService extends EventEmitter {
     if (device != null) {
       this.runDeviceMethod(device.id, methodName, args);
     } else {
-      logger.warn(`Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`);
+      logger.warn(
+        `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`
+      );
     }
   }
 
@@ -406,7 +503,10 @@ export class EntityService extends EventEmitter {
     }
   }
 
-  private buildDeviceSandbox(device: Device, deviceHandler: DeviceHandler): any {
+  private buildDeviceSandbox(
+    device: Device,
+    deviceHandler: DeviceHandler
+  ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(
@@ -429,13 +529,13 @@ export class EntityService extends EventEmitter {
       new DeviceWrapper(device, this._deviceService)
     );
 
-    if(deviceHandler.inlcudes != null) {
-      deviceHandler.inlcudes.forEach((include) => {
-        if(include === "zigbee.zcl.DataType") {
+    if (deviceHandler.includes != null) {
+      deviceHandler.includes.forEach((include) => {
+        if (include === "zigbee.zcl.DataType") {
           sandbox["DataType"] = new DataType();
         }
         //TODO: handle async http
-      })
+      });
     }
 
     let settingsObject: any = {};

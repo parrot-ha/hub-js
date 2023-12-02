@@ -8,6 +8,7 @@ import {
 export class SmartAppMetadataDelegate {
   private _includeDefinition: boolean;
   private _includePreferences: boolean;
+  private _includeMappings: boolean;
   private _sandboxMethods: string[] = [
     "definition",
     "preferences",
@@ -15,10 +16,13 @@ export class SmartAppMetadataDelegate {
     "input",
     "page",
     "dynamicPage",
+    "mappings",
+    "path",
   ];
   metadataValue: any = {
     definition: {},
     preferences: {},
+    mappings: {},
   };
 
   private temporarySection: any = null;
@@ -27,14 +31,32 @@ export class SmartAppMetadataDelegate {
 
   constructor(
     includeDefinition: boolean = true,
-    includePreferences: boolean = false
+    includePreferences: boolean = false,
+    includeMappings: boolean = false
   ) {
     this._includeDefinition = includeDefinition;
     this._includePreferences = includePreferences;
+    this._includeMappings = includeMappings;
   }
 
   get sandboxMethods() {
     return this._sandboxMethods;
+  }
+
+  public mappings(closure: Function) {
+    if (this._includeMappings) {
+      this.metadataValue.mappings = {};
+      closure();
+    }
+  }
+
+  public path(path: string, actions: any) {
+    if (typeof actions === "object") {
+      let action = actions["action"];
+      if (typeof action === "object") {
+        this.metadataValue.mappings[path] = action;
+      }
+    }
   }
 
   public definition(definitionInfo: any) {
@@ -91,7 +113,7 @@ export class SmartAppMetadataDelegate {
       throw new Error("No parameters passed to page() function");
     }
     // if param2 is a function, then param1 must be an object
-    if(typeof param2 === "function" && typeof param1 !== "object") {
+    if (typeof param2 === "function" && typeof param1 !== "object") {
       throw new Error("Invalid arguments passed to page() function");
     }
     this.temporaryPage = createStandardPage();

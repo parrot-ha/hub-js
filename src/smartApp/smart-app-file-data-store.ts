@@ -380,7 +380,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
         let parsedFile = YAML.parse(smartAppsConfigFile);
         if (parsedFile && Array.isArray(parsedFile)) {
           parsedFile.forEach((fileDH) => {
-            let smartApp: SmartApp = fileDH as SmartApp;
+            let smartApp: SmartApp = SmartApp.buildFromObject(fileDH);
             smartAppInfo.set(smartApp.id, smartApp);
           });
         }

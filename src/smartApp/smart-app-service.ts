@@ -62,6 +62,59 @@ export class SmartAppService {
     return this._smartAppDataStore.deleteInstalledSmartApp(installedSmartAppId);
   }
 
+  public addInstalledSmartApp(smartAppId: string): string {
+    let sa: SmartApp = this.getSmartApp(smartAppId);
+
+    let isa: InstalledSmartApp = new InstalledSmartApp();
+    isa.label = sa.name;
+    isa.smartAppId = sa.id;
+    return this._smartAppDataStore.createInstalledSmartApp(isa);
+  }
+
+  public addChildInstalledSmartApp(
+    parentAppId: string,
+    appName: string,
+    namespace: string
+  ): string {
+    let childSmartApp: SmartApp = this.getSmartAppByNameAndNamespace(
+      appName,
+      namespace
+    );
+    let parentInstalledSmartApp: InstalledSmartApp =
+      this.getInstalledSmartApp(parentAppId);
+    if (parentInstalledSmartApp == null) {
+      throw new Error("Parent App Id not found: " + parentAppId);
+    }
+    let parentSmartApp: SmartApp = this.getSmartApp(
+      parentInstalledSmartApp.smartAppId
+    );
+    if (
+      childSmartApp.parent != null &&
+      childSmartApp.parent ===
+        parentSmartApp.namespace + ":" + parentSmartApp.name
+    ) {
+      let isa: InstalledSmartApp = new InstalledSmartApp();
+      isa.label = childSmartApp.name;
+      isa.smartAppId = childSmartApp.id;
+      isa.parentInstalledSmartAppId = parentAppId;
+      return this._smartAppDataStore.createInstalledSmartApp(isa);
+    } else {
+      throw new Error("Specified app is not a child of the parent app.");
+    }
+  }
+
+  public getSmartAppByNameAndNamespace(
+    name: string,
+    namespace: string
+  ): SmartApp {
+    for (let smartApp of this.getSmartApps()) {
+      if (smartApp.name === name && smartApp.namespace === namespace) {
+        return smartApp;
+      }
+    }
+    return null;
+  }
+
   public updateInstalledSmartApp(
     installedSmartApp: InstalledSmartApp
   ): boolean {
@@ -305,10 +358,15 @@ export class SmartAppService {
     sourceCode: string,
     fileName: string,
     includeDefinition?: boolean,
-    includePreferences?: boolean
+    includePreferences?: boolean,
+    includeMappings?: boolean
   ) {
     let smartAppMetadataDelegate: SmartAppMetadataDelegate =
-      new SmartAppMetadataDelegate(includeDefinition, includePreferences);
+      new SmartAppMetadataDelegate(
+        includeDefinition,
+        includePreferences,
+        includeMappings
+      );
     let sandbox = this.buildMetadataContext(smartAppMetadataDelegate);
 
     try {

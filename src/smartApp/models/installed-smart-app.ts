@@ -6,7 +6,7 @@ export class InstalledSmartApp {
   smartAppId: string | undefined;
   installed: boolean = false;
   settings: InstalledSmartAppSetting[] | undefined;
-  state: any;
+  private _state: any;
   parentInstalledSmartAppId: string | undefined;
   modes: string[]; // list of modes to run in
 
@@ -19,6 +19,17 @@ export class InstalledSmartApp {
       return this.name;
     }
     return this.label;
+  }
+
+  public get state() {
+    if (this._state === null || this._state === undefined) {
+      this._state = {};
+    }
+    return this._state;
+  }
+
+  public set state(state: any) {
+    this._state = state;
   }
 
   public getSettingByName(name: string): InstalledSmartAppSetting {

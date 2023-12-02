@@ -37,32 +37,30 @@ module.exports = function (
     res.json(isaListData);
   });
 
-  // router.post("/", (req: Request, res: Response) => {
-  //     String body = ctx.body();
-  //     Map bodyMap = (Map) (new JsonSlurper().parseText(body));
+  router.post("/", (req: Request, res: Response) => {
+    let body = req.body;
+    let type = body.type;
 
-  //     String type = (String) bodyMap.get("type");
+    let smartAppModel: any = { message: "" };
+    let smartAppId = "";
 
-  //     Map<String, Object> smartAppModel = new HashMap<>();
-  //     smartAppModel.put("message", "");
-  //     String smartAppId = "";
+    if ("child" == type) {
+      let parentAppId = body.id;
+      let appName = body.appName;
+      let namespace = body.namespace;
+      smartAppId = smartAppService.addChildInstalledSmartApp(
+        parentAppId,
+        appName,
+        namespace
+      );
+    } else {
+      let smartAppTypeId = body.id;
+      smartAppId = smartAppService.addInstalledSmartApp(smartAppTypeId);
+    }
+    smartAppModel.id = smartAppId;
 
-  //     if ("child".equals(type)) {
-  //         String parentAppId = (String) bodyMap.get("id");
-  //         String appName = (String) bodyMap.get("appName");
-  //         String namespace = (String) bodyMap.get("namespace");
-
-  //         smartAppId = smartAppService.addChildInstalledSmartApp(parentAppId, appName, namespace);
-  //     } else {
-  //         String smartAppTypeId = (String) bodyMap.get("id");
-  //         smartAppId = smartAppService.addInstalledSmartApp(smartAppTypeId);
-  //     }
-  //     smartAppModel.put("id", smartAppId);
-
-  //     ctx.status(200);
-  //     ctx.contentType("application/json");
-  //     ctx.result(new JsonBuilder(smartAppModel).toString());
-  // });
+    res.json(smartAppModel);
+  });
 
   router.get("/:id", (req: Request, res: Response) => {
     let id: string = req.params.id;
@@ -227,26 +225,26 @@ module.exports = function (
 
   // // we are updating isa config and we are not done updating the cfg
   router.patch("/:id/cfg/settings", (req: Request, res: Response) => {
-      let id: string = req.params.id;
-      //String body = ctx.body();
-      let updatedSettings = req.body;
-      smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
+    let id: string = req.params.id;
+    //String body = ctx.body();
+    let updatedSettings = req.body;
+    smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
 
-      res.json({ success: true });
+    res.json({ success: true });
   });
 
   // // we are done updating an isa so run installed or updated depending
   router.post("/:id/cfg/settings", (req: Request, res: Response) => {
-      let id: string = req.params.id;
-      let updatedSettings = req.body;
-      smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
+    let id: string = req.params.id;
+    let updatedSettings = req.body;
+    smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
 
-      try {
-          entityService.updateOrInstallInstalledSmartApp(id);
-          res.json({ success: true });
-      } catch (err) {
-          res.json({ success: false, message: err.message });
-      }
+    try {
+      entityService.updateOrInstallInstalledSmartApp(id);
+      res.json({ success: true });
+    } catch (err) {
+      res.json({ success: false, message: err.message });
+    }
   });
 
   return router;
