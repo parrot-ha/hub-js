@@ -1,19 +1,19 @@
 export class WebServiceResponse {
   contentType: string = "application/json";
-  status: number;
+  status: number = 200;
   data: string;
 
   constructor(properties: any) {
     if(properties == null)
      return;
-    if(properties["content-type"] != null) {
-      this.contentType = properties["content-type"];
+    if(properties["contentType"] != null) {
+      this.contentType = properties["contentType"];
     }
     if(properties["status"] != null) {
       this.status = properties["status"];
     }
     if(properties["data"] != null) {
-      this.status = properties["data"];
+      this.data = properties["data"];
     }
   }
 }

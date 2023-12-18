@@ -133,10 +133,11 @@ export class Device {
       d.integration = json.integration;
       d.state = json.state;
       d.data = json.data;
+      d.currentStates = new Map();
       if (json.currentStates) {
-        d.currentStates = new Map(Object.entries(json.currentStates));
-      } else {
-        d.currentStates = new Map();
+        Object.entries(json.currentStates).forEach((entry) => {
+          d.currentStates.set(entry[0], State.fromJSON(entry[1]));
+        });
       }
       if (json.settings && Array.isArray(json.settings)) {
         json.settings.forEach((setting: any) => {

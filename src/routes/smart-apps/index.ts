@@ -13,17 +13,17 @@ module.exports = function (
 ) {
   const router = express.Router();
 
-  router.get("/installations/:id/*", (req: Request, res: Response) => {
+  router.all("/installations/:id/*", (req: Request, res: Response) => {
     let id: string = req.params.id;
-    let path = req.params[0];
+    let path = '/' + req.params[0];
     let params = req.query;
     let response = entityService.processSmartAppWebRequest(
       id,
-      "GET",
+      req.method,
       path,
-      null,
+      req.body,
       params,
-      null
+      req.headers
     );
     console.log("web smart apps", id);
     if (response != null) {

@@ -14,6 +14,8 @@ export class SmartAppMetadataDelegate {
     "preferences",
     "section",
     "input",
+    "paragraph",
+    "href",
     "page",
     "dynamicPage",
     "mappings",
@@ -256,7 +258,7 @@ export class SmartAppMetadataDelegate {
       multiple: false,
     };
     if (typeof param1 === "string") {
-      tempParagraph.page = param1;
+      tempParagraph.description = param1;
     } else if (typeof param1 === "object") {
       for (const key in param1) {
         tempParagraph[key] = param1[key];
