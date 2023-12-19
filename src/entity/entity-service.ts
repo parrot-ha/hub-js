@@ -226,7 +226,6 @@ export class EntityService extends EventEmitter {
                   },
                   null
                 );
-                console.log("response", JSON.stringify(response));
 
                 if (response instanceof WebServiceResponse) {
                   return response;
