@@ -31,6 +31,7 @@ import {
 import { sendZigbeeMessage } from "./zigbee-message-transformer";
 import { getCluster } from "zigbee-herdsman/dist/zcl/utils";
 import { DataType } from "../utils/data-type";
+import fs from "fs";
 
 const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
@@ -148,6 +149,13 @@ export default class ZigbeeIntegration
         zigbeeChannelList = [parseInt(zigbeeChannel)];
       }
       try {
+        if (!fs.existsSync("userData/")) {
+          fs.mkdirSync("userData/");
+        }
+        if (!fs.existsSync("userData/zigbee/")) {
+          fs.mkdirSync("userData/zigbee/");
+        }
+
         this._controller = new Controller({
           network: {
             panID: panID,

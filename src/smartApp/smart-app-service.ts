@@ -273,7 +273,7 @@ export class SmartAppService {
         (esa) => esa.file === fileName
       );
 
-      if (existingSmartApp) {
+      if (existingSmartApp != null && Array.isArray(existingSmartApp) && existingSmartApp.length > 0) {
         if (existingSmartApp.length > 1) {
           logger.warn("Found more than one matching Smart App!");
         } else if (
