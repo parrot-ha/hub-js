@@ -49,7 +49,7 @@ export class EntityService extends EventEmitter {
     this._locationService = locationService;
   }
 
-  sendDeviceEvent(properties: any, deviceId: string): void {
+  sendDeviceEvent(properties: any, device: DeviceWrapper): void {
     console.log("send device event!");
     if (!properties) {
       return;
@@ -57,7 +57,8 @@ export class EntityService extends EventEmitter {
 
     let event: ParrotEvent = new ParrotEvent(properties);
     event.source = "DEVICE";
-    event.sourceId = deviceId;
+    event.sourceId = device.id;
+    event.displayName = device.displayName;
     this.processEvent(event);
   }
 

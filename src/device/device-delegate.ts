@@ -5,7 +5,7 @@ import { DeviceWrapper } from "./models/device-wrapper";
 import { DeviceService } from "./device-service";
 
 export class DeviceDelegate extends EntityDelegate {
-  private _device: Device;
+  private _device: DeviceWrapper;
   private _entityService: EntityService;
   private _deviceService: DeviceService;
   private _sandboxMethods: string[] = [
@@ -20,7 +20,7 @@ export class DeviceDelegate extends EntityDelegate {
     deviceService: DeviceService
   ) {
     super();
-    this._device = device;
+    this._device = new DeviceWrapper(device, deviceService);
     this._entityService = entityService;
     this._deviceService = deviceService;
   }
@@ -37,13 +37,13 @@ export class DeviceDelegate extends EntityDelegate {
     return this._device.id;
   }
 
-  public get device(): Device {
+  public get device(): DeviceWrapper {
     return this._device;
   }
 
-  sendEvent(eventMap: Map<string, any>) {
+  sendEvent(eventMap: any) {
     if (this._device?.id) {
-      this._entityService.sendDeviceEvent(eventMap, this._device.id);
+      this._entityService.sendDeviceEvent(eventMap, this._device);
     }
   }
 
