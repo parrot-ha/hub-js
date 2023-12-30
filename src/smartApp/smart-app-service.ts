@@ -115,6 +115,10 @@ export class SmartAppService {
     return null;
   }
 
+  public getInstalledSmartAppsByToken(token: string): string[] {
+    return this._smartAppDataStore.getInstalledSmartAppsByToken(token);
+}
+
   public updateInstalledSmartApp(
     installedSmartApp: InstalledSmartApp
   ): boolean {

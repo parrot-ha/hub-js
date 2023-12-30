@@ -226,7 +226,6 @@ module.exports = function (
   // // we are updating isa config and we are not done updating the cfg
   router.patch("/:id/cfg/settings", (req: Request, res: Response) => {
     let id: string = req.params.id;
-    //String body = ctx.body();
     let updatedSettings = req.body;
     smartAppService.updateInstalledSmartAppSettings(id, updatedSettings);
 

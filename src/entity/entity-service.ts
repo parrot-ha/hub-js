@@ -50,7 +50,7 @@ export class EntityService extends EventEmitter {
   }
 
   sendDeviceEvent(properties: any, device: DeviceWrapper): void {
-    console.log("send device event!");
+    logger.silly("send device event!");
     if (!properties) {
       return;
     }
@@ -74,7 +74,7 @@ export class EntityService extends EventEmitter {
   }
 
   private processEvent(event: ParrotEvent): void {
-    console.log("process event!", event);
+    logger.debug("process event!", JSON.stringify(event));
     // skip any events that have a null name
     if (event.name == null) {
       return;
@@ -162,18 +162,22 @@ export class EntityService extends EventEmitter {
   ): WebServiceResponse {
     let authenticated: boolean = false;
 
-    // if (id == null) {
-    //     // check if we can get the id from the bearer token
-    //     String bearerToken = getBearerToken(headers);
-    //     if (bearerToken != null) {
-    //         List<String> installedAutomationAppIds = automationAppService.getInstalledAutomationAppsByToken(bearerToken);
-    //         if (installedAutomationAppIds != null && installedAutomationAppIds.size() == 1) {
-    //             id = installedAutomationAppIds.get(0);
-    //             // set authenticated to true since we know we have a valid bearer token
-    //             authenticated = true;
-    //         }
-    //     }
-    // }
+    if (id == null) {
+      // check if we can get the id from the bearer token
+      let bearerToken = this.getBearerToken(headers);
+      if (bearerToken != null) {
+        let installedAutomationAppIds: string[] =
+          this._smartAppService.getInstalledSmartAppsByToken(bearerToken);
+        if (
+          installedAutomationAppIds != null &&
+          installedAutomationAppIds.length == 1
+        ) {
+          id = installedAutomationAppIds[0];
+          // set authenticated to true since we know we have a valid bearer token
+          authenticated = true;
+        }
+      }
+    }
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
 
@@ -192,14 +196,18 @@ export class EntityService extends EventEmitter {
       }
       if (!authenticated) {
         // check for bearer token
-        // String bearerToken = getBearerToken(headers);
-        // if (bearerToken != null) {
-        //     // check bearer token is valid
-        //     List<String> installedAutomationAppIds = automationAppService.getInstalledAutomationAppsByToken(bearerToken);
-        //     if (installedAutomationAppIds != null && installedAutomationAppIds.contains(id)) {
-        //         authenticated = true;
-        //     }
-        // }
+        let bearerToken = this.getBearerToken(headers);
+        if (bearerToken != null) {
+          // check bearer token is valid
+          let installedAutomationAppIds: string[] =
+            this._smartAppService.getInstalledSmartAppsByToken(bearerToken);
+          if (
+            installedAutomationAppIds != null &&
+            installedAutomationAppIds.includes(id)
+          ) {
+            authenticated = true;
+          }
+        }
       }
 
       if (!authenticated) {
@@ -236,7 +244,7 @@ export class EntityService extends EventEmitter {
                   });
                 }
               } catch (err) {
-                console.log("error", err.message);
+                logger.warn("error", err.message);
               }
             }
           }
@@ -269,104 +277,20 @@ export class EntityService extends EventEmitter {
     return null;
   }
 
-  // private runInstalledSmartAppMethodWithParamsAndReturn(
-  //   id: string,
-  //   params: any,
-  //   request: WebServiceRequest,
-  //   methodName: string,
-  //   args: any[]
-  // ): any {
-  //   let installedSmartApp: InstalledSmartApp =
-  //     this._smartAppService.getInstalledSmartApp(id);
-  //   let smartApp: SmartApp = this._smartAppService.getSmartApp(
-  //     installedSmartApp.smartAppId
-  //   );
-  //   let retVal;
-  //   let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
-  //   let context = this.buildSmartAppSandbox(installedSmartApp);
-  //   context.request = request;
-  //   context.params = params;
-
-  //   console.log("stateCopy", JSON.stringify(stateCopy));
-
-  //   const data = fs.readFileSync(smartApp.file);
-
-  //   //TODO: can this context be saved and reused?
-  //   vm.createContext(context);
-  //   vm.runInContext(data.toString(), context, {
-  //     filename: `smartApp_${smartApp.id}.js`,
-  //   });
-  //   if (typeof context[methodName] === "function") {
-  //     let myFunction: Function = context[methodName];
-  //     try {
-  //       if (Array.isArray(args)) {
-  //         retVal = myFunction.call(null, ...args);
-  //       } else {
-  //         retVal = myFunction.call(null, args);
-  //       }
-  //       //update state
-  //       this._smartAppService.updateInstalledSmartAppState(
-  //         installedSmartApp.id,
-  //         stateCopy,
-  //         context.state
-  //       );
-  //     } catch (err) {
-  //       console.log(err);
-  //     }
-  //   }
-  //         Class<Script> s = getScriptForInstalledAutomationApp(id);
-  //         if (s != null) {
-  //             InstalledAutomationApp installedAutomationApp = automationAppService.getInstalledAutomationApp(id);
-
-  //             try {
-  //                 ParrotHubDelegatingScript parrotHubDelegatingScript = (ParrotHubDelegatingScript) s.getConstructor()
-  //                         .newInstance();
-  //                 AutomationAppScriptDelegateImpl automationAppScriptDelegate = new AutomationAppScriptDelegateImpl(
-  //                         installedAutomationApp, locationService, eventService, this, deviceService, scheduleService,
-  //                         automationAppService, integrationRegistry, request);
-  //                 if (params != null) {
-  //                     automationAppScriptDelegate.setBaseParams(params);
-  //                 }
-  //                 parrotHubDelegatingScript.setDelegate(automationAppScriptDelegate);
-
-  //                 Object returnObject;
-  //                 if (args != null && args instanceof Object[]) {
-  //                     if (args.length == 1) {
-  //                         returnObject = parrotHubDelegatingScript.invokeMethod(methodName, args[0]);
-  //                     } else if (args.length == 0) {
-  //                         returnObject = parrotHubDelegatingScript.invokeMethod(methodName, null);
-  //                     } else {
-  //                         returnObject = parrotHubDelegatingScript.invokeMethod(methodName, args);
-  //                     }
-  //                 } else {
-  //                     returnObject = parrotHubDelegatingScript.invokeMethod(methodName, null);
-  //                 }
-
-  //                 //Object retObj = parrotHubDelegatingScript.invokeMethod(methodName, args);
-
-  //                 // save state
-  //                 automationAppService.saveState(id,
-  //                         (ChangeTrackingMap) ((AutomationAppScriptDelegateImpl) parrotHubDelegatingScript.getDelegate())
-  //                                 .getState());
-
-  //                 return returnObject;
-  // //            } catch (MissingMethodException missingMethodException) {
-  // //                if (!missingMethodException.getMessage().contains("." + methodName + "()")) {
-  // //                    throw missingMethodException;
-  // //                }
-  //             } catch (Exception e) {
-  //                 //TODO: get line number
-  //                 LoggerFactory.getLogger("parrothub.live.iaa." + id).error(e.getMessage() + " (" + methodName + ")");
-
-  //                 if (logger.isDebugEnabled()) {
-  //                     logger.debug("Exception ", e);
-  //                 }
-  //                 throw e;
-  //             }
-  //         } else {
-  //             throw new NotFoundException("Installed Automation App Not found");
-  //         }
-  // }
+  private getBearerToken(headers: any): string {
+    let bearerToken = null;
+    let authorizationHeader = headers["Authorization"];
+    if (authorizationHeader != null) {
+      if (authorizationHeader.startsWith("Bearer ")) {
+        bearerToken = authorizationHeader.substring("Bearer ".length);
+        if (bearerToken.includes(".")) {
+          let bearerTokenArray = bearerToken.split(".");
+          bearerToken = bearerTokenArray[bearerTokenArray.length - 1];
+        }
+      }
+    }
+    return bearerToken;
+  }
 
   public async runSmartAppMethod(
     id: string,
@@ -375,43 +299,12 @@ export class EntityService extends EventEmitter {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
-        let installedSmartApp: InstalledSmartApp =
-          this._smartAppService.getInstalledSmartApp(id);
-        let smartApp: SmartApp = this._smartAppService.getSmartApp(
-          installedSmartApp.smartAppId
+        let retVal = this.runSmartAppMethodWithReturn(
+          id,
+          methodName,
+          null,
+          args
         );
-        let retVal;
-        let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
-        let context = this.buildSmartAppSandbox(installedSmartApp);
-
-        console.log("stateCopy", JSON.stringify(stateCopy));
-
-        const data = fs.readFileSync(smartApp.file);
-
-        //TODO: can this context be saved and reused?
-        vm.createContext(context);
-        vm.runInContext(data.toString(), context, {
-          filename: `smartApp_${smartApp.id}.js`,
-        });
-        if (typeof context[methodName] === "function") {
-          let myFunction: Function = context[methodName];
-          try {
-            if (Array.isArray(args)) {
-              retVal = myFunction.call(null, ...args);
-            } else {
-              retVal = myFunction.call(null, args);
-            }
-            //update state
-            this._smartAppService.updateInstalledSmartAppState(
-              installedSmartApp.id,
-              stateCopy,
-              context.state
-            );
-          } catch (err) {
-            console.log(err);
-          }
-        }
-
         resolve(retVal);
       } catch (error) {
         reject(error);
@@ -439,7 +332,7 @@ export class EntityService extends EventEmitter {
       }
     }
 
-    console.log("stateCopy", JSON.stringify(stateCopy));
+    logger.debug("stateCopy", JSON.stringify(stateCopy));
 
     const data = fs.readFileSync(smartApp.file);
 
@@ -450,21 +343,18 @@ export class EntityService extends EventEmitter {
     });
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
-      try {
-        if (Array.isArray(args)) {
-          retVal = myFunction.call(null, ...args);
-        } else {
-          retVal = myFunction.call(null, args);
-        }
-        //update state
-        this._smartAppService.updateInstalledSmartAppState(
-          installedSmartApp.id,
-          stateCopy,
-          context.state
-        );
-      } catch (err) {
-        console.log(err);
+
+      if (Array.isArray(args)) {
+        retVal = myFunction.call(null, ...args);
+      } else {
+        retVal = myFunction.call(null, args);
       }
+      //update state
+      this._smartAppService.updateInstalledSmartAppState(
+        installedSmartApp.id,
+        stateCopy,
+        context.state
+      );
     } else {
       //throw error if function not found
       throw new Error(`Function ${methodName} not found`);
@@ -519,7 +409,7 @@ export class EntityService extends EventEmitter {
         }
       }
     } catch (err) {
-      console.log(err);
+      logger.warn(err);
     }
     return null;
   }
@@ -553,7 +443,7 @@ export class EntityService extends EventEmitter {
       installedSmartApp.id,
       installedSmartApp.displayName
     );
-    //sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
+
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
       this._eventService,
@@ -698,7 +588,7 @@ export class EntityService extends EventEmitter {
       //update state
       this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
-      console.log("err with run device method", err);
+      logger.warn("err with run device method", err);
     }
   }
 
@@ -786,7 +676,7 @@ export class EntityService extends EventEmitter {
         timeout: 20000, // timeout after 20 seconds
       });
     } catch (err) {
-      console.log("err with run entity method", err);
+      logger.warn("err with run entity method", err);
     }
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
@@ -799,11 +689,11 @@ export class EntityService extends EventEmitter {
         }
         return retVal;
       } catch (err) {
-        console.log(err);
+        logger.warn(err);
       }
     } else {
       //TODO: do something about missing methods
-      console.log(`method ${methodName} missing on entity ${entityName}`);
+      logger.warn(`method ${methodName} missing on entity ${entityName}`);
     }
   }
 

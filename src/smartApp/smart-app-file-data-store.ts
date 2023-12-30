@@ -124,7 +124,13 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   }
 
   getInstalledSmartAppsByToken(token: string): string[] {
-    throw new Error("Method not implemented.");
+    let smartAppId = this.getTokenToSmartAppMap().get(token);
+    if (smartAppId != null) {
+      return this.getInstalledSmartApps()
+        ?.filter((isa) => smartAppId == isa.smartAppId)
+        ?.map((isa) => isa.id);
+    }
+    return null;
   }
 
   getOAuthClientIdByToken(token: string): string {
@@ -242,6 +248,27 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
       logger.warn("error when saving installed smart app file", err);
       return false;
     }
+  }
+
+  private _tokenToSmartAppMap: Map<string, string>;
+
+  private getTokenToSmartAppMap(): Map<string, string> {
+    if (this._tokenToSmartAppMap == null) {
+      this._tokenToSmartAppMap = this.loadTokenToSmartAppMap();
+    }
+    return this._tokenToSmartAppMap;
+  }
+
+  private loadTokenToSmartAppMap(): Map<string, string> {
+    let tokenToSmartAppMap: Map<string, string> = new Map<string, string>();
+    for (const smartApp of this.getSmartApps()) {
+      if (smartApp.oAuthTokens != null) {
+        for (const authToken of smartApp.oAuthTokens) {
+          tokenToSmartAppMap.set(authToken.accessToken, smartApp.id);
+        }
+      }
+    }
+    return tokenToSmartAppMap;
   }
 
   /*
