@@ -10,6 +10,7 @@ export abstract class EntityDelegate {
     "runIn",
     "schedule",
     "parseLanMessage",
+    "now",
   ];
 
   get sandboxMethods() {
@@ -169,5 +170,9 @@ export abstract class EntityDelegate {
           : handlerMethod,
         options
       );
+  }
+
+  public now(): number {
+    return new Date().getTime();
   }
 }

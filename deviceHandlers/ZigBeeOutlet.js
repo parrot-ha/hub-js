@@ -34,7 +34,7 @@ metadata(() => {
 
 function parse(description) {
   if (description.startsWith("catchall")) return;
-  let descMap = zigbee.parseDescriptionAsMap(description);
+  let descMap = zigbee.parseDescriptionAsObject(description);
 
   if (descMap.cluster == "0006" && descMap.attrId == "0000") {
     let value = descMap.value == "01" ? "on" : "off";

@@ -13,6 +13,29 @@ module.exports = function (
 ) {
   const router = express.Router();
 
+  router.all("/installations/:id/*", (req: Request, res: Response) => {
+    let id: string = req.params.id;
+    let path = '/' + req.params[0];
+    let params = req.query;
+    let response = entityService.processSmartAppWebRequest(
+      id,
+      req.method,
+      path,
+      req.body,
+      params,
+      req.headers
+    );
+    console.log("web smart apps", id);
+    if (response != null) {
+      if (response.contentType != null) {
+        res.type(response.contentType);
+      }
+      res.status(response.status).send(response.data);
+    } else {
+      res.json({ success: true });
+    }
+  });
+
   router.get("/", (req: Request, res: Response) => {
     let filter: string = req.query?.filter?.toString();
 
@@ -48,14 +71,15 @@ module.exports = function (
 
     let smartAppSaved: boolean = false;
     let smartAppMap: any = req.body;
+    console.log(JSON.stringify(smartAppMap));
 
     let smartApp: SmartApp = smartAppService.getSmartApp(id);
 
     if (smartApp != null) {
-      if (smartAppMap.containsKey("oAuthEnabled")) {
-        if (smartAppMap.get("oAuthEnabled") instanceof Boolean) {
-          if (smartAppMap.get("oAuthEnabled") && !smartApp.oAuthEnabled) {
-            console.log("OAuth enabled! " + smartAppMap.get("oAuthEnabled"));
+      if (smartAppMap.hasOwnProperty("oAuthEnabled")) {
+        if (smartAppMap["oAuthEnabled"] instanceof Boolean || typeof smartAppMap["oAuthEnabled"] === "boolean") {
+          if (smartAppMap["oAuthEnabled"] && !smartApp.oAuthEnabled) {
+            console.log("OAuth enabled! " + smartAppMap["oAuthEnabled"]);
             smartApp.oAuthClientId = randomUUID();
             smartApp.oAuthClientSecret = randomUUID();
           }

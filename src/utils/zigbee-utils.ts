@@ -21,6 +21,15 @@ export class ZigBeeUtils {
     this._device = device;
   }
 
+  public parseDescriptionAsObject(description: string): any {
+    let parsedDescription = this.parseDescriptionAsMap(description);
+    if (parsedDescription) {
+      return Object.fromEntries(parsedDescription);
+    } else {
+      return null;
+    }
+  }
+  
   public parseDescriptionAsMap(description: string): Map<string, any> {
     if (description == null) {
       return null;

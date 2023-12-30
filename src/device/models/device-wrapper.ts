@@ -26,6 +26,10 @@ export class DeviceWrapper implements EntityWrapper {
     return this._device.name;
   }
 
+  get displayName(): string {
+    return this._device.displayName;
+  }
+
   get deviceNetworkId(): string {
     return this._device.deviceNetworkId;
   }

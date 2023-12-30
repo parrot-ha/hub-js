@@ -348,7 +348,7 @@ export class DeviceService {
             // only difference is the id,, so no changes
             //logger.debug("No changes for file " + fileName);
           } else {
-            logger.debug("Changes for file " + fileName);
+            logger.debug("cnaedh Changes for file " + fileName);
             newDHInfo.id = oldDHInfo.id;
             this._deviceDataStore.updateDeviceHandler(newDHInfo);
           }
@@ -575,7 +575,7 @@ export class DeviceService {
     // this is so that it will not clear out client id and client secret that have been set by the user at runtime instead of
     // being defined in the device handler definition.
     if (!newDeviceHandler.equalsIgnoreId(oldDeviceHandler)) {
-      logger.debug("Changes for file " + newDeviceHandler.file);
+      logger.debug("udhic Changes for file " + newDeviceHandler.file);
       newDeviceHandler.id = oldDeviceHandler.id;
       this._deviceDataStore.updateDeviceHandler(newDeviceHandler);
     } else {
@@ -608,7 +608,7 @@ export class DeviceService {
       deviceHandler.fingerprints = definition.fingerprints;
       deviceHandler.file = fileName;
       deviceHandler.type = type;
-      deviceHandler.inlcudes = metadataValue.includes;
+      deviceHandler.includes = metadataValue.includes;
 
       return deviceHandler;
     } else {

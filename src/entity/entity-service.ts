@@ -20,6 +20,8 @@ import { HubAction } from "../device/models/hub-action";
 import { Fingerprint } from "../device/models/fingerprint";
 import { ZigBeeUtils } from "../utils/zigbee-utils";
 import { DataType } from "../utils/data-type";
+import { WebServiceResponse } from "./models/web-service-response";
+import { WebServiceRequest } from "./models/web-service-request";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -47,15 +49,16 @@ export class EntityService extends EventEmitter {
     this._locationService = locationService;
   }
 
-  sendDeviceEvent(properties: any, deviceId: string): void {
-    console.log("send device event!");
+  sendDeviceEvent(properties: any, device: DeviceWrapper): void {
+    logger.silly("send device event!");
     if (!properties) {
       return;
     }
 
     let event: ParrotEvent = new ParrotEvent(properties);
     event.source = "DEVICE";
-    event.sourceId = deviceId;
+    event.sourceId = device.id;
+    event.displayName = device.displayName;
     this.processEvent(event);
   }
 
@@ -71,7 +74,7 @@ export class EntityService extends EventEmitter {
   }
 
   private processEvent(event: ParrotEvent): void {
-    console.log("process event!", event);
+    logger.debug("process event!", JSON.stringify(event));
     // skip any events that have a null name
     if (event.name == null) {
       return;
@@ -149,6 +152,146 @@ export class EntityService extends EventEmitter {
     return false;
   }
 
+  public processSmartAppWebRequest(
+    id: string,
+    httpMethod: string,
+    path: string,
+    body: string,
+    params: any,
+    headers: any
+  ): WebServiceResponse {
+    let authenticated: boolean = false;
+
+    if (id == null) {
+      // check if we can get the id from the bearer token
+      let bearerToken = this.getBearerToken(headers);
+      if (bearerToken != null) {
+        let installedAutomationAppIds: string[] =
+          this._smartAppService.getInstalledSmartAppsByToken(bearerToken);
+        if (
+          installedAutomationAppIds != null &&
+          installedAutomationAppIds.length == 1
+        ) {
+          id = installedAutomationAppIds[0];
+          // set authenticated to true since we know we have a valid bearer token
+          authenticated = true;
+        }
+      }
+    }
+    let installedSmartApp: InstalledSmartApp =
+      this._smartAppService.getInstalledSmartApp(id);
+
+    if (installedSmartApp != null) {
+      // check if we have an access token
+      if (!authenticated && params != null) {
+        let paramAccessToken = params["access_token"];
+
+        let state = installedSmartApp.state;
+        if (state != null) {
+          let accessToken = state["accessToken"];
+          if (accessToken === paramAccessToken) {
+            authenticated = true;
+          }
+        }
+      }
+      if (!authenticated) {
+        // check for bearer token
+        let bearerToken = this.getBearerToken(headers);
+        if (bearerToken != null) {
+          // check bearer token is valid
+          let installedAutomationAppIds: string[] =
+            this._smartAppService.getInstalledSmartAppsByToken(bearerToken);
+          if (
+            installedAutomationAppIds != null &&
+            installedAutomationAppIds.includes(id)
+          ) {
+            authenticated = true;
+          }
+        }
+      }
+
+      if (!authenticated) {
+        return new WebServiceResponse({
+          status: 401,
+          contentType: "application/xhtml+xml",
+          data: "<oauth><error_description>Invalid or missing access token</error_description><error>invalid_token</error></oauth>",
+        });
+      }
+
+      let mappings = this.getInstalledSmartAppMapping(id, params);
+      if (mappings != null) {
+        for (let key of Object.keys(mappings)) {
+          if (path.toLowerCase() === key.toLowerCase()) {
+            // we have a match
+            if (mappings[key] != null) {
+              let methodName: string = mappings[key][httpMethod];
+              try {
+                let response = this.runSmartAppMethodWithReturn(
+                  id,
+                  methodName,
+                  {
+                    params: params,
+                    request: new WebServiceRequest(httpMethod, headers, body),
+                  },
+                  null
+                );
+
+                if (response instanceof WebServiceResponse) {
+                  return response;
+                } else if (typeof response === "object") {
+                  return new WebServiceResponse({
+                    data: JSON.stringify(response),
+                  });
+                }
+              } catch (err) {
+                logger.warn("error", err.message);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return new WebServiceResponse({ status: 404 });
+  }
+
+  private getInstalledSmartAppMapping(id: string, params: any): any {
+    let installedSmartApp: InstalledSmartApp =
+      this._smartAppService.getInstalledSmartApp(id);
+    let smartApp: SmartApp = this._smartAppService.getSmartApp(
+      installedSmartApp.smartAppId
+    );
+    let retVal;
+    let context = this.buildSmartAppSandbox(installedSmartApp, true);
+    context["params"] = params;
+
+    const data = fs.readFileSync(smartApp.file);
+
+    vm.createContext(context);
+    vm.runInContext(data.toString(), context, {
+      filename: `smartApp_${smartApp.id}.js`,
+    });
+    if (context.getPathMappings() != null) {
+      return context.getPathMappings();
+    }
+    return null;
+  }
+
+  private getBearerToken(headers: any): string {
+    let bearerToken = null;
+    let authorizationHeader = headers["Authorization"];
+    if (authorizationHeader != null) {
+      if (authorizationHeader.startsWith("Bearer ")) {
+        bearerToken = authorizationHeader.substring("Bearer ".length);
+        if (bearerToken.includes(".")) {
+          let bearerTokenArray = bearerToken.split(".");
+          bearerToken = bearerTokenArray[bearerTokenArray.length - 1];
+        }
+      }
+    }
+    return bearerToken;
+  }
+
   public async runSmartAppMethod(
     id: string,
     methodName: string,
@@ -156,48 +299,68 @@ export class EntityService extends EventEmitter {
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
-        let installedSmartApp: InstalledSmartApp =
-          this._smartAppService.getInstalledSmartApp(id);
-        let smartApp: SmartApp = this._smartAppService.getSmartApp(
-          installedSmartApp.smartAppId
+        let retVal = this.runSmartAppMethodWithReturn(
+          id,
+          methodName,
+          null,
+          args
         );
-        let retVal;
-        let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
-        let context = this.buildSmartAppSandbox(installedSmartApp);
-
-        console.log("stateCopy", JSON.stringify(stateCopy));
-
-        const data = fs.readFileSync(smartApp.file);
-
-        //TODO: can this context be saved and reused?
-        vm.createContext(context);
-        vm.runInContext(data.toString(), context, {
-          filename: `smartApp_${smartApp.id}.js`,
-        });
-        if (typeof context[methodName] === "function") {
-          let myFunction: Function = context[methodName];
-          try {
-            if (Array.isArray(args)) {
-              retVal = myFunction.call(null, ...args);
-            } else {
-              retVal = myFunction.call(null, args);
-            }
-            //update state
-            this._smartAppService.updateInstalledSmartAppState(
-              installedSmartApp.id,
-              stateCopy,
-              context.state
-            );
-          } catch (err) {
-            console.log(err);
-          }
-        }
-
         resolve(retVal);
       } catch (error) {
         reject(error);
       }
     });
+  }
+
+  private runSmartAppMethodWithReturn(
+    id: string,
+    methodName: string,
+    additionalContext: any,
+    args: any[]
+  ): any {
+    let installedSmartApp: InstalledSmartApp =
+      this._smartAppService.getInstalledSmartApp(id);
+    let smartApp: SmartApp = this._smartAppService.getSmartApp(
+      installedSmartApp.smartAppId
+    );
+    let retVal;
+    let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
+    let context = this.buildSmartAppSandbox(installedSmartApp);
+    if (additionalContext != null && typeof additionalContext === "object") {
+      for (const key in additionalContext) {
+        context[key] = additionalContext[key];
+      }
+    }
+
+    logger.debug("stateCopy", JSON.stringify(stateCopy));
+
+    const data = fs.readFileSync(smartApp.file);
+
+    //TODO: can this context be saved and reused?
+    vm.createContext(context);
+    vm.runInContext(data.toString(), context, {
+      filename: `smartApp_${smartApp.id}.js`,
+    });
+    if (typeof context[methodName] === "function") {
+      let myFunction: Function = context[methodName];
+
+      if (Array.isArray(args)) {
+        retVal = myFunction.call(null, ...args);
+      } else {
+        retVal = myFunction.call(null, args);
+      }
+      //update state
+      this._smartAppService.updateInstalledSmartAppState(
+        installedSmartApp.id,
+        stateCopy,
+        context.state
+      );
+    } else {
+      //throw error if function not found
+      throw new Error(`Function ${methodName} not found`);
+    }
+
+    return retVal;
   }
 
   public updateOrInstallInstalledSmartApp(id: string): void {
@@ -246,7 +409,7 @@ export class EntityService extends EventEmitter {
         }
       }
     } catch (err) {
-      console.log(err);
+      logger.warn(err);
     }
     return null;
   }
@@ -254,7 +417,12 @@ export class EntityService extends EventEmitter {
   private getDynamicPage(id: string, page: any): any {
     let content: string = page.content.toString();
     // this is a dynamic page, run method to get content
-    let dynamicPageResponse: any = this.runSmartAppMethod(id, content, null);
+    let dynamicPageResponse: any = this.runSmartAppMethodWithReturn(
+      id,
+      content,
+      null,
+      null
+    );
 
     if (dynamicPageResponse) {
       dynamicPageResponse.content = content;
@@ -265,19 +433,30 @@ export class EntityService extends EventEmitter {
     return dynamicPageResponse;
   }
 
-  private buildSmartAppSandbox(installedSmartApp: InstalledSmartApp): any {
+  private buildSmartAppSandbox(
+    installedSmartApp: InstalledSmartApp,
+    includeMappings: boolean = false
+  ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger(
       "SMARTAPP",
       installedSmartApp.id,
       installedSmartApp.displayName
     );
-    sandbox.state = JSON.parse(JSON.stringify(installedSmartApp.state));
+
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
       this._eventService,
-      this._locationService
+      this._locationService,
+      this._smartAppService,
+      includeMappings
     );
+    sandbox.state = smartAppDelegate.state;
+    if (includeMappings) {
+      sandbox["getPathMappings"] = (smartAppDelegate as any)[
+        "getPathMappings"
+      ].bind(smartAppDelegate);
+    }
 
     smartAppDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (smartAppDelegate as any)[sandboxMethod].bind(
@@ -289,6 +468,11 @@ export class EntityService extends EventEmitter {
     let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
     const settingsProxy = new Proxy(settingsObject, settingsHandler);
     sandbox["settings"] = settingsProxy;
+    //TODO: use a wrapper
+    sandbox["app"] = installedSmartApp;
+
+    //TODO: use location wrapper
+    sandbox["location"] = this._locationService.getLocation();
 
     return sandbox;
   }
@@ -378,7 +562,9 @@ export class EntityService extends EventEmitter {
     if (device != null) {
       this.runDeviceMethod(device.id, methodName, args);
     } else {
-      logger.warn(`Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`);
+      logger.warn(
+        `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`
+      );
     }
   }
 
@@ -402,11 +588,14 @@ export class EntityService extends EventEmitter {
       //update state
       this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
-      console.log("err with run device method", err);
+      logger.warn("err with run device method", err);
     }
   }
 
-  private buildDeviceSandbox(device: Device, deviceHandler: DeviceHandler): any {
+  private buildDeviceSandbox(
+    device: Device,
+    deviceHandler: DeviceHandler
+  ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(
@@ -429,13 +618,13 @@ export class EntityService extends EventEmitter {
       new DeviceWrapper(device, this._deviceService)
     );
 
-    if(deviceHandler.inlcudes != null) {
-      deviceHandler.inlcudes.forEach((include) => {
-        if(include === "zigbee.zcl.DataType") {
+    if (deviceHandler.includes != null) {
+      deviceHandler.includes.forEach((include) => {
+        if (include === "zigbee.zcl.DataType") {
           sandbox["DataType"] = new DataType();
         }
         //TODO: handle async http
-      })
+      });
     }
 
     let settingsObject: any = {};
@@ -487,7 +676,7 @@ export class EntityService extends EventEmitter {
         timeout: 20000, // timeout after 20 seconds
       });
     } catch (err) {
-      console.log("err with run entity method", err);
+      logger.warn("err with run entity method", err);
     }
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
@@ -500,11 +689,11 @@ export class EntityService extends EventEmitter {
         }
         return retVal;
       } catch (err) {
-        console.log(err);
+        logger.warn(err);
       }
     } else {
       //TODO: do something about missing methods
-      console.log(`method ${methodName} missing on entity ${entityName}`);
+      logger.warn(`method ${methodName} missing on entity ${entityName}`);
     }
   }
 

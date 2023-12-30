@@ -68,7 +68,7 @@ export class EventService {
     subscribedAppId: string,
     attributeNameAndValue: string,
     handlerMethod: string,
-    options: Map<string, any>
+    options: any
   ): void {
     let subscription: Subscription = new Subscription();
     subscription.id = crypto.randomUUID();
@@ -76,8 +76,8 @@ export class EventService {
     subscription.attributeNameAndValue = attributeNameAndValue;
     subscription.subscribedAppId = subscribedAppId;
     subscription.handlerMethod = handlerMethod;
-    if (options != null && options.has("filterEvents")) {
-      subscription.filterEvents = options.get("filterEvents");
+    if (options != null && options.hasOwnProperty("filterEvents")) {
+      subscription.filterEvents = options["filterEvents"];
     }
 
     // check for existing subscription
