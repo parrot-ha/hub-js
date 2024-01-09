@@ -5,6 +5,7 @@ import {
   createMode,
 } from "../entity/entity-preferences-helper";
 
+//TODO: remove this
 export class SmartAppMetadataDelegate {
   private _includeDefinition: boolean;
   private _includePreferences: boolean;

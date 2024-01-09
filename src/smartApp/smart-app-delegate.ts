@@ -13,6 +13,7 @@ import {
   createMode,
 } from "../entity/entity-preferences-helper";
 import { WebServiceResponse } from "../entity/models/web-service-response";
+import { ScheduleService } from "../hub/schedule-service";
 
 export class SmartAppDelegate extends EntityDelegate {
   private _eventService: EventService;
@@ -39,6 +40,8 @@ export class SmartAppDelegate extends EntityDelegate {
     "getTemperatureScale"
   ];
 
+  private _includeDefinition: boolean = false;
+  private _includePreferences: boolean = false;
   private _includeMappings: boolean = false;
 
   state: any;
@@ -48,14 +51,19 @@ export class SmartAppDelegate extends EntityDelegate {
     eventService: EventService,
     locationService: LocationService,
     smartAppService: SmartAppService,
+    scheduleService: ScheduleService,
+    includeDefinition: boolean = false,
+    includePreferences: boolean = false,
     includeMappings: boolean = false
   ) {
-    super();
+    super(scheduleService);
     this._installedSmartApp = installedSmartApp;
     this.state = JSON.parse(JSON.stringify(installedSmartApp.state));
     this._eventService = eventService;
     this._locationService = locationService;
     this._smartAppService = smartAppService;
+    this._includeDefinition = includeDefinition;
+    this._includePreferences = includePreferences;
     this._includeMappings = includeMappings;
   }
 

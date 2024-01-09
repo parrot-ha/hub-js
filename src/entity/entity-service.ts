@@ -22,6 +22,7 @@ import { ZigBeeUtils } from "../utils/zigbee-utils";
 import { DataType } from "../utils/data-type";
 import { WebServiceResponse } from "./models/web-service-response";
 import { WebServiceRequest } from "./models/web-service-request";
+import { ScheduleService } from "../hub/schedule-service";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -35,18 +36,21 @@ export class EntityService extends EventEmitter {
   private _smartAppService: SmartAppService;
   private _eventService: EventService;
   private _locationService: LocationService;
+  private _scheduleService: ScheduleService;
 
   constructor(
     deviceService: DeviceService,
     smartAppService: SmartAppService,
     eventService: EventService,
-    locationService: LocationService
+    locationService: LocationService,
+    scheduledService: ScheduleService
   ) {
     super();
     this._deviceService = deviceService;
     this._eventService = eventService;
     this._smartAppService = smartAppService;
     this._locationService = locationService;
+    this._scheduleService = scheduledService;
   }
 
   sendDeviceEvent(properties: any, device: DeviceWrapper): void {
@@ -449,6 +453,9 @@ export class EntityService extends EventEmitter {
       this._eventService,
       this._locationService,
       this._smartAppService,
+      this._scheduleService,
+      false,
+      false,
       includeMappings
     );
     sandbox.state = smartAppDelegate.state;
@@ -601,7 +608,8 @@ export class EntityService extends EventEmitter {
     let deviceDelegate: DeviceDelegate = new DeviceDelegate(
       device,
       this,
-      this._deviceService
+      this._deviceService,
+      this._scheduleService
     );
 
     sandbox["HubAction"] = HubAction;

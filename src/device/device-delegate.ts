@@ -3,6 +3,7 @@ import { EntityService } from "../entity/entity-service";
 import { EntityDelegate } from "../entity/entity-delegate";
 import { DeviceWrapper } from "./models/device-wrapper";
 import { DeviceService } from "./device-service";
+import { ScheduleService } from "../hub/schedule-service";
 
 export class DeviceDelegate extends EntityDelegate {
   private _device: DeviceWrapper;
@@ -17,9 +18,10 @@ export class DeviceDelegate extends EntityDelegate {
   constructor(
     device: Device,
     entityService: EntityService,
-    deviceService: DeviceService
+    deviceService: DeviceService,
+    scheduleService: ScheduleService
   ) {
-    super();
+    super(scheduleService);
     this._device = new DeviceWrapper(device, deviceService);
     this._entityService = entityService;
     this._deviceService = deviceService;
