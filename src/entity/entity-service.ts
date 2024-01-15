@@ -438,12 +438,6 @@ export class EntityService extends EventEmitter {
       null,
       null
     );
-    let dynamicPageResponse: any = this.runSmartAppMethodWithReturn(
-      id,
-      content,
-      null,
-      null
-    );
 
     if (dynamicPageResponse) {
       dynamicPageResponse.content = content;
@@ -454,10 +448,6 @@ export class EntityService extends EventEmitter {
     return dynamicPageResponse;
   }
 
-  private buildSmartAppSandbox(
-    installedSmartApp: InstalledSmartApp,
-    includeMappings: boolean = false
-  ): any {
   private buildSmartAppSandbox(
     installedSmartApp: InstalledSmartApp,
     includeMappings: boolean = false
