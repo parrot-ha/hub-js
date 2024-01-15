@@ -2,6 +2,7 @@ import http, { IncomingMessage } from "http";
 import https from "https";
 import { ServiceFactory } from "../hub/service-factory";
 import { isBlank, isEmpty, stringToObject } from "../utils/string-utils";
+import { ScheduleService } from "../hub/schedule-service";
 
 // common functions for SmartApps and Devices
 export abstract class EntityDelegate {
@@ -11,6 +12,7 @@ export abstract class EntityDelegate {
     "schedule",
     "parseLanMessage",
     "now",
+    "toDateTime",
   ];
 
   get sandboxMethods() {
@@ -19,6 +21,12 @@ export abstract class EntityDelegate {
 
   abstract get entityType(): string;
   abstract get entityId(): string;
+
+  private _scheduleService: ScheduleService;
+
+  constructor(scheduleService: ScheduleService) {
+    this._scheduleService = scheduleService;
+  }
 
   parseLanMessage(stringToParse: string): any {
     if (stringToParse == null) {
@@ -141,17 +149,13 @@ export abstract class EntityDelegate {
     handlerMethod: string | Function,
     options: any = {}
   ): void {
-    ServiceFactory.getInstance()
-      .getScheduleService()
-      .runIn(
-        delayInSeconds,
-        this.entityType,
-        this.entityId,
-        typeof handlerMethod === "function"
-          ? handlerMethod.name
-          : handlerMethod,
-        options
-      );
+    this._scheduleService.runIn(
+      delayInSeconds,
+      this.entityType,
+      this.entityId,
+      typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
+      options
+    );
   }
 
   public schedule(
@@ -159,20 +163,20 @@ export abstract class EntityDelegate {
     handlerMethod: string | Function,
     options: any = {}
   ): void {
-    ServiceFactory.getInstance()
-      .getScheduleService()
-      .scheduleEvery(
-        schedule,
-        this.entityType,
-        this.entityId,
-        typeof handlerMethod === "function"
-          ? handlerMethod.name
-          : handlerMethod,
-        options
-      );
+    this._scheduleService.scheduleEvery(
+      schedule,
+      this.entityType,
+      this.entityId,
+      typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
+      options
+    );
   }
 
   public now(): number {
     return new Date().getTime();
+  }
+
+  public toDateTime(dateTimeString: string): Date {
+    return new Date(dateTimeString);
   }
 }

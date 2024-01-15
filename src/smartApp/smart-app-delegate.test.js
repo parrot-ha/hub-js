@@ -1,9 +1,9 @@
 import { describe, expect, test } from "@jest/globals";
-import { SmartAppMetadataDelegate } from "./smart-app-metadata-delegate";
+import { SmartAppDelegate } from "./smart-app-delegate";
 
-describe("Test Smart App Metadata delegate", () => {
+describe("Test Smart App Delegate", () => {
   test("create page with name", () => {
-    let samd = new SmartAppMetadataDelegate();
+    let samd = new SmartAppDelegate();
     samd.page("my page name");
     expect(samd.metadataValue.preferences).toBeDefined();
     expect(samd.metadataValue.preferences.pageList).toBeDefined();
@@ -16,7 +16,7 @@ describe("Test Smart App Metadata delegate", () => {
   });
 
   test("create page with name and title", () => {
-    let samd = new SmartAppMetadataDelegate();
+    let samd = new SmartAppDelegate();
     samd.page("my page name", "my page title");
     expect(samd.metadataValue.preferences).toBeDefined();
     expect(samd.metadataValue.preferences.pageList).toBeDefined();
@@ -27,8 +27,9 @@ describe("Test Smart App Metadata delegate", () => {
     expect(page.name).toBe("my page name");
     expect(page.title).toBe("my page title");
   });
+
   test("create page with blank function", () => {
-    let samd = new SmartAppMetadataDelegate();
+    let samd = new SmartAppDelegate();
     samd.page(() => {});
     expect(samd.metadataValue.preferences).toBeDefined();
     expect(samd.metadataValue.preferences.pageList).toBeDefined();
@@ -39,8 +40,9 @@ describe("Test Smart App Metadata delegate", () => {
     expect(page.name).toBeNull();
     expect(page.title).toBeNull();
   });
+
   test("create page with options and blank function", () => {
-    let samd = new SmartAppMetadataDelegate();
+    let samd = new SmartAppDelegate();
     samd.page({ name: "my new name" }, () => {});
     expect(samd.metadataValue.preferences).toBeDefined();
     expect(samd.metadataValue.preferences.pageList).toBeDefined();
@@ -51,8 +53,9 @@ describe("Test Smart App Metadata delegate", () => {
     expect(page.name).toBe("my new name");
     expect(page.title).toBeNull();
   });
+
   test("create page with function containing section", () => {
-    let samd = new SmartAppMetadataDelegate();
+    let samd = new SmartAppDelegate();
     samd.page({name: "myPage", title: "my title"}, () => {
       samd.section();
     });

@@ -1,34 +1,29 @@
 import { describe, expect, test } from "@jest/globals";
-import { EntityService } from "./entity-service";
-import { DeviceService } from "../device/device-service";
-import { SmartAppService } from "../smartApp/smart-app-service";
-import { EventService } from "../hub/event-service";
-import { LocationService } from "../hub/location-service";
-import { DeviceHandler } from "../device/models/device-handler";
-import { Fingerprint } from "../device/models/fingerprint";
+import { DeviceService } from "./device-service";
+import { DeviceHandler } from "./models/device-handler";
+import { Fingerprint } from "./models/fingerprint";
+import { IntegrationRegistry } from "../integration/integration-registry";
+import { DeviceDataStore } from "./device-data-store";
 
 describe("get Device Handler By Fingerprint", () => {
   test("empty device info", () => {
     let mockGetDeviceHandlers = jest.fn(() => []);
-    let mockDeviceService = {
+    let mockDeviceDataStore = {
       getDeviceHandlers: function () {
-        return [];
-      },
-      getDeviceHandlerByNameAndNamespace: function () {
         let dh = new DeviceHandler();
         dh.id = "789";
-        return dh;
+        dh.name = "Thing";
+        dh.namespace = "parrotha.device.virtual";
+        return [dh];
       },
     };
 
-    let entityService = new EntityService(
-      mockDeviceService as unknown as DeviceService,
-      {} as SmartAppService,
-      {} as EventService,
-      {} as LocationService
+    let deviceService = new DeviceService(
+      mockDeviceDataStore as unknown as DeviceDataStore,
+      {} as IntegrationRegistry
     );
-    
-    let deviceHandlerInfo = entityService.getDeviceHandlerByFingerprint(
+
+    let deviceHandlerInfo = deviceService.getDeviceHandlerByFingerprint(
       new Map<string, string>()
     );
     expect(deviceHandlerInfo).not.toBeNull();
@@ -38,7 +33,7 @@ describe("get Device Handler By Fingerprint", () => {
 
   test("single fingerprint matches device info", () => {
     let mockGetDeviceHandlers = jest.fn(() => []);
-    let mockDeviceService = {
+    let mockDeviceDataStore = {
       getDeviceHandlers: function () {
         let dh = new DeviceHandler();
         dh.id = "456";
@@ -62,19 +57,13 @@ describe("get Device Handler By Fingerprint", () => {
         dh.fingerprints = [fingerprint1, fingerprint2];
         return [dh];
       },
-      getDeviceHandlerByNameAndNamespace: function () {
-        let dh = new DeviceHandler();
-        dh.id = "123";
-        return dh;
-      },
     };
 
-    let entityService = new EntityService(
-      mockDeviceService as unknown as DeviceService,
-      {} as SmartAppService,
-      {} as EventService,
-      {} as LocationService
+    let deviceService = new DeviceService(
+      mockDeviceDataStore as unknown as DeviceDataStore,
+      {} as IntegrationRegistry
     );
+
     let deviceInfo = new Map<string, string>();
     deviceInfo.set("manufacturer", "CentraLite");
     deviceInfo.set("model", "3210-L");
@@ -86,7 +75,7 @@ describe("get Device Handler By Fingerprint", () => {
     );
 
     let deviceHandlerInfo =
-      entityService.getDeviceHandlerByFingerprint(deviceInfo);
+      deviceService.getDeviceHandlerByFingerprint(deviceInfo);
     expect(deviceHandlerInfo).not.toBeNull();
     expect(deviceHandlerInfo.id).toBeDefined();
     expect(deviceHandlerInfo.joinName).toBe("Smartthings Outlet");

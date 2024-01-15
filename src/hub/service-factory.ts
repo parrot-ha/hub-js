@@ -6,6 +6,7 @@ import { EventService } from "./event-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
 import { LocationService } from "./location-service";
 import { ScheduleService } from "./schedule-service";
+import { ScheduleServiceNS } from "./schedule-service-ns";
 import { LocationFileDataStore } from "./location-file-data-store";
 import { IntegrationService } from "../integration/integration-service";
 import { IntegrationFileDataStore } from "../integration/integration-file-data-store";
@@ -80,7 +81,9 @@ export class ServiceFactory {
 
   public getScheduleService(): ScheduleService {
     if (!this._scheduleService) {
-      this._scheduleService = new ScheduleService(this.getEntityService());
+      let ssns = new ScheduleServiceNS();
+      ssns.entityService = this.getEntityService();
+      this._scheduleService = ssns;
     }
     return this._scheduleService;
   }
