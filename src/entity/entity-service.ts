@@ -11,18 +11,19 @@ import { DeviceHandler } from "../device/models/device-handler";
 import { InstalledSmartApp } from "../smartApp/models/installed-smart-app";
 import { InstalledSmartAppSetting } from "../smartApp/models/installed-smart-app-setting";
 import { DeviceWrapper } from "../device/models/device-wrapper";
-import { DeviceSetting } from "../device/models/device-setting";
 import { LocationService } from "../hub/location-service";
 import { EntityLogger } from "./entity-logger-service";
-import { isEmpty, isNotBlank } from "../utils/string-utils";
+import { isEmpty } from "../utils/string-utils";
+import { buildDeviceSettingsHandler } from "./entity-service-helper";
 import EventEmitter from "node:events";
 import { HubAction } from "../device/models/hub-action";
-import { Fingerprint } from "../device/models/fingerprint";
 import { ZigBeeUtils } from "../utils/zigbee-utils";
 import { DataType } from "../utils/data-type";
 import { WebServiceResponse } from "./models/web-service-response";
 import { WebServiceRequest } from "./models/web-service-request";
 import { ScheduleService } from "../hub/schedule-service";
+import { ServiceFactory } from "../hub/service-factory";
+import { DeviceWrapperList } from "../device/models/device-wrapper-list";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -36,21 +37,22 @@ export class EntityService extends EventEmitter {
   private _smartAppService: SmartAppService;
   private _eventService: EventService;
   private _locationService: LocationService;
-  private _scheduleService: ScheduleService;
 
   constructor(
     deviceService: DeviceService,
     smartAppService: SmartAppService,
     eventService: EventService,
-    locationService: LocationService,
-    scheduledService: ScheduleService
+    locationService: LocationService
   ) {
     super();
     this._deviceService = deviceService;
     this._eventService = eventService;
     this._smartAppService = smartAppService;
     this._locationService = locationService;
-    this._scheduleService = scheduledService;
+  }
+
+  private get scheduleService(): ScheduleService {
+    return ServiceFactory.getInstance().getScheduleService();
   }
 
   sendDeviceEvent(properties: any, device: DeviceWrapper): void {
@@ -371,11 +373,17 @@ export class EntityService extends EventEmitter {
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
     if (installedSmartApp.installed) {
-      this.runSmartAppMethod(id, "updated", null);
+      this.runSmartAppMethod(id, "updated", null).catch((err) => {
+        //TODO: log this to the live log
+        logger.warn("error! updated", err);
+      });
     } else {
       installedSmartApp.installed = true;
       this._smartAppService.updateInstalledSmartApp(installedSmartApp);
-      this.runSmartAppMethod(id, "installed", null);
+      this.runSmartAppMethod(id, "installed", null).catch((err) => {
+        //TODO: log this to the live log
+        logger.warn("error! installed", err);
+      });
     }
   }
 
@@ -453,7 +461,7 @@ export class EntityService extends EventEmitter {
       this._eventService,
       this._locationService,
       this._smartAppService,
-      this._scheduleService,
+      this.scheduleService,
       false,
       false,
       includeMappings
@@ -501,20 +509,17 @@ export class EntityService extends EventEmitter {
             if (installedSmartAppSetting.type.startsWith("capability")) {
               if (installedSmartAppSetting.value) {
                 if (installedSmartAppSetting.multiple) {
-                  settingLookupVal = [];
-                  JSON.parse(installedSmartAppSetting.value).forEach(
-                    (deviceId: string) => {
-                      settingLookupVal.push(
-                        this.shEntityService.buildDeviceWrapper(
-                          this.shDeviceService.getDevice(deviceId)
-                        )
-                      );
-                    }
-                  );
+                  //settingLookupVal = [];
+                  settingLookupVal =
+                    this.shEntityService.buildDeviceWrapperList(
+                      JSON.parse(installedSmartAppSetting.value),
+                      this.shDeviceService
+                    );
                 } else {
                   let deviceId = installedSmartAppSetting.value;
                   settingLookupVal = this.shEntityService.buildDeviceWrapper(
-                    this.shDeviceService.getDevice(deviceId)
+                    this.shDeviceService.getDevice(deviceId),
+                    this.shDeviceService
                   );
                 }
               } else {
@@ -554,6 +559,40 @@ export class EntityService extends EventEmitter {
       },
     };
     return new Proxy(deviceWrapper, deviceWrapperHandler);
+  }
+
+  protected buildDeviceWrapperList(deviceIds: string[]) {
+    let deviceWrappers: DeviceWrapper[] = [];
+    deviceIds.forEach((devId) =>
+      deviceWrappers.push(
+        this.buildDeviceWrapper(this._deviceService.getDevice(devId))
+      )
+    );
+    let deviceWrapperList = new DeviceWrapperList(deviceWrappers);
+    let deviceWrapperHandler = {
+      shEntityService: this,
+      get(dwTarget: any, dwProp: any, dwReceiver: any): any {
+        //TODO: is there a better way to handle this?
+        if (dwProp === "_device" || dwProp === "_deviceService") {
+          return dwTarget[dwProp];
+        }
+        const origMethod = dwTarget[dwProp];
+        if (origMethod) {
+          return origMethod;
+        } else {
+          // probably a call to a command
+          //TODO: check if command from device handler
+          return function (...args: any[]) {
+            if (dwTarget.devices != null) {
+              dwTarget.devices.forEach((dw: DeviceWrapper) =>
+                this.shEntityService.runDeviceMethod(dw.id, dwProp, args)
+              );
+            }
+          }.bind(this);
+        }
+      },
+    };
+    return new Proxy(deviceWrapperList, deviceWrapperHandler);
   }
 
   public runDeviceMethodByDNI(
@@ -609,7 +648,7 @@ export class EntityService extends EventEmitter {
       device,
       this,
       this._deviceService,
-      this._scheduleService
+      this.scheduleService
     );
 
     sandbox["HubAction"] = HubAction;
@@ -636,31 +675,11 @@ export class EntityService extends EventEmitter {
     }
 
     let settingsObject: any = {};
-    let settingsHandler = this.buildDeviceSettingsHandler(device);
+    let settingsHandler = buildDeviceSettingsHandler(device);
     const settingsProxy = new Proxy(settingsObject, settingsHandler);
     sandbox["settings"] = settingsProxy;
 
     return sandbox;
-  }
-
-  protected buildDeviceSettingsHandler(device: Device) {
-    return {
-      settingsCache: {},
-      devSettings: device.settings || [],
-      get(target: any, prop: any): any {
-        let settingLookupVal = this.settingsCache[prop];
-        if (typeof settingLookupVal === "undefined") {
-          let deviceSetting: DeviceSetting = this.devSettings.find(
-            (element: DeviceSetting) => element.name == prop
-          );
-          if (typeof deviceSetting != "undefined") {
-            settingLookupVal = deviceSetting.getValueAsType();
-            this.settingsCache[prop] = settingLookupVal;
-          }
-        }
-        return settingLookupVal ? settingLookupVal : null;
-      },
-    };
   }
 
   private runEntityMethod(
@@ -705,222 +724,10 @@ export class EntityService extends EventEmitter {
     }
   }
 
-  private _fingerprints: Map<Fingerprint, string>;
-
-  private getFingerprints(): Map<Fingerprint, string> {
-    if (this._fingerprints == null) {
-      this._fingerprints = new Map<Fingerprint, string>();
-
-      for (let dhInfo of this._deviceService.getDeviceHandlers()) {
-        let dhInfoFPs = dhInfo.fingerprints;
-        if (dhInfoFPs != null) {
-          for (let fp of dhInfoFPs) {
-            this._fingerprints.set(fp, dhInfo.id);
-          }
-        }
-      }
-    }
-    return this._fingerprints;
-  }
-
   public getDeviceHandlerByFingerprint(deviceInfo: Map<string, string>): {
     id: string;
     joinName: string;
   } {
-    let fingerprints = this.getFingerprints();
-    if (logger.isLevelEnabled("debug")) {
-      logger.debug(
-        "Fingerprints! " + JSON.stringify(Object.fromEntries(fingerprints))
-      );
-    }
-    if (logger.isLevelEnabled("debug")) {
-      logger.debug(
-        "deviceInfo: " + JSON.stringify(Object.fromEntries(deviceInfo))
-      );
-    }
-    let matchingScore = 0;
-    let matchingFingerprint: Fingerprint = null;
-    for (let fingerprint of fingerprints.keys()) {
-      let score = this.fingerprintScore(fingerprint, deviceInfo);
-      if (score > matchingScore) {
-        matchingScore = score;
-        matchingFingerprint = fingerprint;
-      }
-    }
-    // TODO: what should be the minimum score?
-    if (matchingFingerprint != null && matchingScore > 90) {
-      if (logger.isDebugEnabled()) {
-        logger.debug(
-          "We have a matching fingerprint! " +
-            matchingFingerprint.deviceJoinName +
-            " id: " +
-            fingerprints.get(matchingFingerprint) +
-            " score: " +
-            matchingScore
-        );
-      }
-      return {
-        id: fingerprints.get(matchingFingerprint),
-        joinName: matchingFingerprint.deviceJoinName,
-      };
-    }
-
-    // if no match, return Thing
-    let thingDeviceHandler =
-      this._deviceService.getDeviceHandlerByNameAndNamespace(
-        "Thing",
-        "parrotha.device.virtual"
-      );
-    if (thingDeviceHandler != null) {
-      return { id: thingDeviceHandler.id, joinName: "Unknown Device" };
-    }
-
-    return null;
-  }
-
-  private fingerprintScore(
-    fingerprint: Fingerprint,
-    deviceInfo: Map<string, string>
-  ): number {
-    if (deviceInfo == null || deviceInfo.size == 0) {
-      return 0;
-    }
-
-    let fingerprintItemCount = 0;
-    let deviceInfoItemCount = deviceInfo.size;
-    let matchCount = 0;
-    let weight = 0;
-
-    let mfrMatch = false;
-    let modelMatch = false;
-    let prodMatch = false;
-    let intgMatch = false;
-
-    if (isNotBlank(fingerprint.profileId)) {
-      fingerprintItemCount++;
-      if (fingerprint.profileId === deviceInfo.get("profileId")) {
-        matchCount++;
-        weight += 1;
-      }
-    }
-
-    if (isNotBlank(fingerprint.endpointId)) {
-      fingerprintItemCount++;
-      if (
-        fingerprint.endpointId.toLowerCase() ===
-        deviceInfo.get("endpointId")?.toLowerCase()
-      ) {
-        matchCount++;
-        weight += 1;
-      }
-    }
-
-    if (isNotBlank(fingerprint.inClusters)) {
-      fingerprintItemCount++;
-      if (
-        fingerprint.inClusters.toLowerCase() ===
-        deviceInfo.get("inClusters")?.toLowerCase()
-      ) {
-        matchCount++;
-        weight += 2;
-      } else if (
-        fingerprint.sortedInClusters.toLowerCase() ===
-        deviceInfo.get("inClusters")?.toLowerCase()
-      ) {
-        matchCount++;
-        weight += 1;
-      }
-    }
-
-    if (isNotBlank(fingerprint.outClusters)) {
-      fingerprintItemCount++;
-      if (
-        fingerprint.outClusters.toLowerCase() ===
-        deviceInfo.get("outClusters")?.toLowerCase()
-      ) {
-        matchCount++;
-        weight += 2;
-      } else if (
-        fingerprint.sortedOutClusters.toLowerCase() ===
-        deviceInfo.get("outClusters")?.toLowerCase()
-      ) {
-        matchCount++;
-        weight += 1;
-      }
-    }
-
-    if (isNotBlank(fingerprint.manufacturer)) {
-      fingerprintItemCount++;
-      if (fingerprint.manufacturer === deviceInfo.get("manufacturer")) {
-        matchCount++;
-        weight += 2;
-      }
-    }
-
-    if (isNotBlank(fingerprint.model)) {
-      fingerprintItemCount++;
-      if (fingerprint.model === deviceInfo.get("model")) {
-        modelMatch = true;
-        matchCount++;
-        weight += 3;
-      }
-    }
-
-    if (isNotBlank(fingerprint.mfr)) {
-      fingerprintItemCount++;
-      if (fingerprint.mfr === deviceInfo.get("mfr")) {
-        mfrMatch = true;
-        matchCount++;
-        weight += 3;
-      }
-    }
-
-    if (isNotBlank(fingerprint.prod)) {
-      fingerprintItemCount++;
-      if (fingerprint.prod === deviceInfo.get("prod")) {
-        prodMatch = true;
-        matchCount++;
-        weight += 3;
-      }
-    }
-
-    if (isNotBlank(fingerprint.intg)) {
-      fingerprintItemCount++;
-      if (fingerprint.intg === deviceInfo.get("intg")) {
-        intgMatch = true;
-        matchCount++;
-        weight += 3;
-      }
-    }
-
-    if (
-      mfrMatch &&
-      modelMatch &&
-      prodMatch &&
-      intgMatch &&
-      fingerprintItemCount == 4
-    ) {
-      // matched all four, best match
-      return 100;
-    }
-
-    if (mfrMatch && modelMatch && prodMatch && fingerprintItemCount == 3) {
-      // matched all three, best match
-      return 99;
-    }
-
-    // similar match, all items, slightly less score
-    if (fingerprintItemCount == matchCount && weight > 4) {
-      return 98;
-    }
-
-    // similar match, all items, even less score
-    if (fingerprintItemCount == matchCount && weight > 3) {
-      return 97;
-    }
-
-    let score = Math.round((matchCount / fingerprintItemCount) * 100 + weight);
-
-    return score;
+    return this._deviceService.getDeviceHandlerByFingerprint(deviceInfo);
   }
 }

@@ -10,7 +10,7 @@ import { Attribute } from "./models/attribute";
 import { Capability } from "./models/capability";
 import { Capabilities } from "./models/capabilities";
 import { EntityLogger } from "../entity/entity-logger-service";
-import { isBlank } from "../utils/string-utils";
+import { isBlank, isNotBlank } from "../utils/string-utils";
 import { DeviceHandlerInUseError } from "./errors/device-handler-in-use-error";
 import { HubAction } from "./models/hub-action";
 import { HubMultiAction } from "./models/hub-multi-action";
@@ -18,6 +18,7 @@ import { Protocol } from "./models/protocol";
 import { HubResponse } from "./models/hub-response";
 import { IntegrationRegistry } from "../integration/integration-registry";
 import { difference } from "../utils/object-utils";
+import { Fingerprint } from "./models/fingerprint";
 
 const logger = require("../hub/logger-service")({ source: "DeviceService" });
 
@@ -414,13 +415,8 @@ export class DeviceService {
     this._deviceDataStore.updateDevice(d);
   }
 
-  
   // state object
-  public saveDeviceState(
-    id: string,
-    originalState: any,
-    updatedState: any
-  ) {
+  public saveDeviceState(id: string, originalState: any, updatedState: any) {
     let changes = difference(updatedState, originalState);
     let device: Device = this.getDevice(id);
     let existingState = device.state;
@@ -760,5 +756,223 @@ export class DeviceService {
       }
     }
     return null;
+  }
+
+  private _fingerprints: Map<Fingerprint, string>;
+
+  private getFingerprints(): Map<Fingerprint, string> {
+    if (this._fingerprints == null) {
+      this._fingerprints = new Map<Fingerprint, string>();
+
+      for (let dhInfo of this.getDeviceHandlers()) {
+        let dhInfoFPs = dhInfo.fingerprints;
+        if (dhInfoFPs != null) {
+          for (let fp of dhInfoFPs) {
+            this._fingerprints.set(fp, dhInfo.id);
+          }
+        }
+      }
+    }
+    return this._fingerprints;
+  }
+
+  public getDeviceHandlerByFingerprint(deviceInfo: Map<string, string>): {
+    id: string;
+    joinName: string;
+  } {
+    let fingerprints = this.getFingerprints();
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        "Fingerprints! " + JSON.stringify(Object.fromEntries(fingerprints))
+      );
+    }
+    if (logger.isLevelEnabled("debug")) {
+      logger.debug(
+        "deviceInfo: " + JSON.stringify(Object.fromEntries(deviceInfo))
+      );
+    }
+    let matchingScore = 0;
+    let matchingFingerprint: Fingerprint = null;
+    for (let fingerprint of fingerprints.keys()) {
+      let score = this.fingerprintScore(fingerprint, deviceInfo);
+      if (score > matchingScore) {
+        matchingScore = score;
+        matchingFingerprint = fingerprint;
+      }
+    }
+    // TODO: what should be the minimum score?
+    if (matchingFingerprint != null && matchingScore > 90) {
+      if (logger.isDebugEnabled()) {
+        logger.debug(
+          "We have a matching fingerprint! " +
+            matchingFingerprint.deviceJoinName +
+            " id: " +
+            fingerprints.get(matchingFingerprint) +
+            " score: " +
+            matchingScore
+        );
+      }
+      return {
+        id: fingerprints.get(matchingFingerprint),
+        joinName: matchingFingerprint.deviceJoinName,
+      };
+    }
+
+    // if no match, return Thing
+    let thingDeviceHandler = this.getDeviceHandlerByNameAndNamespace(
+      "Thing",
+      "parrotha.device.virtual"
+    );
+    if (thingDeviceHandler != null) {
+      return { id: thingDeviceHandler.id, joinName: "Unknown Device" };
+    }
+
+    return null;
+  }
+
+  private fingerprintScore(
+    fingerprint: Fingerprint,
+    deviceInfo: Map<string, string>
+  ): number {
+    if (deviceInfo == null || deviceInfo.size == 0) {
+      return 0;
+    }
+
+    let fingerprintItemCount = 0;
+    let deviceInfoItemCount = deviceInfo.size;
+    let matchCount = 0;
+    let weight = 0;
+
+    let mfrMatch = false;
+    let modelMatch = false;
+    let prodMatch = false;
+    let intgMatch = false;
+
+    if (isNotBlank(fingerprint.profileId)) {
+      fingerprintItemCount++;
+      if (fingerprint.profileId === deviceInfo.get("profileId")) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.endpointId)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.endpointId.toLowerCase() ===
+        deviceInfo.get("endpointId")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.inClusters)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.inClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 2;
+      } else if (
+        fingerprint.sortedInClusters.toLowerCase() ===
+        deviceInfo.get("inClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.outClusters)) {
+      fingerprintItemCount++;
+      if (
+        fingerprint.outClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 2;
+      } else if (
+        fingerprint.sortedOutClusters.toLowerCase() ===
+        deviceInfo.get("outClusters")?.toLowerCase()
+      ) {
+        matchCount++;
+        weight += 1;
+      }
+    }
+
+    if (isNotBlank(fingerprint.manufacturer)) {
+      fingerprintItemCount++;
+      if (fingerprint.manufacturer === deviceInfo.get("manufacturer")) {
+        matchCount++;
+        weight += 2;
+      }
+    }
+
+    if (isNotBlank(fingerprint.model)) {
+      fingerprintItemCount++;
+      if (fingerprint.model === deviceInfo.get("model")) {
+        modelMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.mfr)) {
+      fingerprintItemCount++;
+      if (fingerprint.mfr === deviceInfo.get("mfr")) {
+        mfrMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.prod)) {
+      fingerprintItemCount++;
+      if (fingerprint.prod === deviceInfo.get("prod")) {
+        prodMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (isNotBlank(fingerprint.intg)) {
+      fingerprintItemCount++;
+      if (fingerprint.intg === deviceInfo.get("intg")) {
+        intgMatch = true;
+        matchCount++;
+        weight += 3;
+      }
+    }
+
+    if (
+      mfrMatch &&
+      modelMatch &&
+      prodMatch &&
+      intgMatch &&
+      fingerprintItemCount == 4
+    ) {
+      // matched all four, best match
+      return 100;
+    }
+
+    if (mfrMatch && modelMatch && prodMatch && fingerprintItemCount == 3) {
+      // matched all three, best match
+      return 99;
+    }
+
+    // similar match, all items, slightly less score
+    if (fingerprintItemCount == matchCount && weight > 4) {
+      return 98;
+    }
+
+    // similar match, all items, even less score
+    if (fingerprintItemCount == matchCount && weight > 3) {
+      return 97;
+    }
+
+    let score = Math.round((matchCount / fingerprintItemCount) * 100 + weight);
+
+    return score;
   }
 }

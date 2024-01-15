@@ -14,6 +14,7 @@ import {
 } from "../entity/entity-preferences-helper";
 import { WebServiceResponse } from "../entity/models/web-service-response";
 import { ScheduleService } from "../hub/schedule-service";
+import { DeviceWrapperList } from "../device/models/device-wrapper-list";
 
 export class SmartAppDelegate extends EntityDelegate {
   private _eventService: EventService;
@@ -37,7 +38,7 @@ export class SmartAppDelegate extends EntityDelegate {
     "page",
     "dynamicPage",
     "render",
-    "getTemperatureScale"
+    "getTemperatureScale",
   ];
 
   private _includeDefinition: boolean = false;
@@ -58,7 +59,9 @@ export class SmartAppDelegate extends EntityDelegate {
   ) {
     super(scheduleService);
     this._installedSmartApp = installedSmartApp;
-    this.state = JSON.parse(JSON.stringify(installedSmartApp.state));
+    if (installedSmartApp != null) {
+      this.state = JSON.parse(JSON.stringify(installedSmartApp.state));
+    }
     this._eventService = eventService;
     this._locationService = locationService;
     this._smartAppService = smartAppService;
@@ -114,6 +117,16 @@ export class SmartAppDelegate extends EntityDelegate {
               handlerMethodName,
               options
             );
+          } else if ((entity as EntityWrapper).getType() === "DEVICE-LIST") {
+            (entity as DeviceWrapperList).devices.forEach((device) => {
+              this._eventService.addDeviceSubscription(
+                device.id,
+                this._installedSmartApp.id,
+                attributeNameAndValue,
+                handlerMethodName,
+                options
+              );
+            });
           }
         });
       }
@@ -126,6 +139,18 @@ export class SmartAppDelegate extends EntityDelegate {
           handlerMethodName,
           options
         );
+      } else if (
+        (entityOrEntities as EntityWrapper).getType() === "DEVICE-LIST"
+      ) {
+        (entityOrEntities as DeviceWrapperList).devices.forEach((device) => {
+          this._eventService.addDeviceSubscription(
+            device.id,
+            this._installedSmartApp.id,
+            attributeNameAndValue,
+            handlerMethodName,
+            options
+          );
+        });
       }
       //TODO: handle location and hub subscribe
     }
@@ -161,10 +186,25 @@ export class SmartAppDelegate extends EntityDelegate {
   }
 
   public definition(definitionInfo: any) {
-    // this function is empty because we ignore definition in normal running
+    if (this._includeDefinition) {
+      this.metadataValue.definition = definitionInfo;
+    }
   }
-  public preferences(params: any, closure: Function) {
-    // this function is empty because we ignore preferences in normal running
+
+  public preferences(closure: Function) {
+    if (this._includePreferences) {
+      this.metadataValue.preferences = {};
+      closure();
+      this.addTemporarySection();
+      if (this.singlePreferencesPage) {
+        this.section({}, () => {
+          // create new section with default values (app name and modes)
+          this.label({});
+          this.mode({});
+        });
+      }
+      this.addTemporaryPage();
+    }
   }
 
   private _pathMappings: any;

@@ -12,6 +12,7 @@ export abstract class EntityDelegate {
     "schedule",
     "parseLanMessage",
     "now",
+    "toDateTime",
   ];
 
   get sandboxMethods() {
@@ -173,5 +174,9 @@ export abstract class EntityDelegate {
 
   public now(): number {
     return new Date().getTime();
+  }
+
+  public toDateTime(dateTimeString: string): Date {
+    return new Date(dateTimeString);
   }
 }

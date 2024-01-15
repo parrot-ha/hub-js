@@ -216,7 +216,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
             newInstalledSmartApps.set(installedSmartApp.id, installedSmartApp);
           }
         } catch (err) {
-          logger.warn(`Error loading file ${isaDirFile}`);
+          logger.warn(`Error loading file ${isaDirFile}`, err);
         }
       });
     } catch (err) {

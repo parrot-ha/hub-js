@@ -23,8 +23,17 @@ export class ScheduleServiceNS implements ScheduleService {
   private _jobs: Map<string, any> = new Map<string, any>();
   private _entityService: EntityService;
 
-  constructor(entityService: EntityService) {
+  constructor() {  }
+
+  public set entityService(entityService: EntityService) {
     this._entityService = entityService;
+  }
+
+  private getEntityService(): EntityService {
+    if(this._entityService == null) {
+      throw new Error("Entity Service is not set in Scheduler!");
+    }
+    return this._entityService;
   }
 
   public initialize(): void {
@@ -55,7 +64,7 @@ export class ScheduleServiceNS implements ScheduleService {
       jobKey = `runOnce_${entityType}_${entityId}_${handlerMethod}`;
       for (let key of this._jobs.keys()) {
         if (key.startsWith(jobKey)) {
-          this._jobs.get(key).cancel();
+          this._jobs.get(key)?.cancel();
           this._jobs.delete(key);
         }
       }
@@ -93,7 +102,7 @@ export class ScheduleServiceNS implements ScheduleService {
       jobKey = `runEvery_${entityType}_${entityId}_${handlerMethod}`;
       for (let key of this._jobs.keys()) {
         if (key.startsWith(jobKey)) {
-          this._jobs.get(key).cancel();
+          this._jobs.get(key)?.cancel();
           this._jobs.delete(key);
         }
       }
@@ -112,7 +121,7 @@ export class ScheduleServiceNS implements ScheduleService {
       }
     } else if (schedule instanceof Date) {
       cronExpression = `${
-        schedule.getSeconds
+        schedule.getSeconds()
       } ${schedule.getMinutes()} ${schedule.getHours()} * * *`;
     } else {
       throw new Error("Invalid argument for schedule");
@@ -168,7 +177,10 @@ export class ScheduleServiceNS implements ScheduleService {
             jobSchedule.entityId,
             jobSchedule.handlerMethod,
             jobSchedule.data
-          );
+          ).catch((err) => {
+            //TODO: log this to the live log
+            logger.warn("error! scheduled method", err);
+          });
         } else if (jobSchedule.entityType === "DEVICE") {
           entityService.runDeviceMethod(
             jobSchedule.entityId,
@@ -182,7 +194,7 @@ export class ScheduleServiceNS implements ScheduleService {
       } catch (err) {
         logger.warn("error with scheduled runIn", err);
       }
-    }.bind(null, this._entityService, this);
+    }.bind(null, this.getEntityService(), this);
     return scheduler.scheduleJob(schedule, runInFunction);
   }
 

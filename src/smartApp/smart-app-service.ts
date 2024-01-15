@@ -2,11 +2,11 @@ import * as crypto from "crypto";
 import { InstalledSmartApp } from "./models/installed-smart-app";
 import { InstalledSmartAppSetting } from "./models/installed-smart-app-setting";
 import { SmartApp, SmartAppType } from "./models/smart-app";
-import { SmartAppMetadataDelegate } from "./smart-app-metadata-delegate";
 import { SmartAppDataStore } from "./smart-app-data-store";
 import { SmartAppInUseError } from "./errors/smart-app-in-use-error";
 import { difference } from "../utils/object-utils";
 import { EntityLogger } from "../entity/entity-logger-service";
+import { SmartAppDelegate } from "./smart-app-delegate";
 const logger = require("../hub/logger-service")({ source: "SmartAppService" });
 
 const fs = require("fs");
@@ -117,7 +117,7 @@ export class SmartAppService {
 
   public getInstalledSmartAppsByToken(token: string): string[] {
     return this._smartAppDataStore.getInstalledSmartAppsByToken(token);
-}
+  }
 
   public updateInstalledSmartApp(
     installedSmartApp: InstalledSmartApp
@@ -277,7 +277,11 @@ export class SmartAppService {
         (esa) => esa.file === fileName
       );
 
-      if (existingSmartApp != null && Array.isArray(existingSmartApp) && existingSmartApp.length > 0) {
+      if (
+        existingSmartApp != null &&
+        Array.isArray(existingSmartApp) &&
+        existingSmartApp.length > 0
+      ) {
         if (existingSmartApp.length > 1) {
           logger.warn("Found more than one matching Smart App!");
         } else if (
@@ -353,25 +357,28 @@ export class SmartAppService {
     return this.getSmartAppMetadata(
       sourceCode,
       `${installedSmartApp}.js`,
-      false,
-      true
+      false
     )?.preferences;
   }
 
   private getSmartAppMetadata(
     sourceCode: string,
     fileName: string,
-    includeDefinition?: boolean,
-    includePreferences?: boolean,
-    includeMappings?: boolean
+    includeDefinition: boolean,
+    includePreferences: boolean = true,
+    includeMappings: boolean = false
   ) {
-    let smartAppMetadataDelegate: SmartAppMetadataDelegate =
-      new SmartAppMetadataDelegate(
-        includeDefinition,
-        includePreferences,
-        includeMappings
-      );
-    let sandbox = this.buildMetadataContext(smartAppMetadataDelegate);
+    let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
+      null,
+      null,
+      null,
+      this,
+      null,
+      includeDefinition,
+      includePreferences,
+      includeMappings
+    );
+    let sandbox = this.buildMetadataContext(smartAppDelegate);
 
     try {
       vm.createContext(sandbox);
@@ -395,7 +402,7 @@ export class SmartAppService {
       throw err;
     }
 
-    return smartAppMetadataDelegate.metadataValue;
+    return smartAppDelegate.metadataValue;
   }
 
   private processSmartAppSource(
@@ -403,7 +410,7 @@ export class SmartAppService {
     sourceCode: string,
     type: SmartAppType = SmartAppType.USER
   ): SmartApp {
-    let metadataValue = this.getSmartAppMetadata(sourceCode, fileName);
+    let metadataValue = this.getSmartAppMetadata(sourceCode, fileName, true);
 
     let smartApp = new SmartApp();
     if (metadataValue?.definition) {
@@ -429,15 +436,11 @@ export class SmartAppService {
     }
   }
 
-  private buildMetadataContext(
-    deviceMetadataDelegate: SmartAppMetadataDelegate
-  ): any {
+  private buildMetadataContext(delegate: SmartAppDelegate): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("SMARTAPP", "NONE", "New Smart App");
-    deviceMetadataDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
-      sandbox[sandboxMethod] = (deviceMetadataDelegate as any)[
-        sandboxMethod
-      ].bind(deviceMetadataDelegate);
+    delegate.sandboxMethods.forEach((sandboxMethod: string) => {
+      sandbox[sandboxMethod] = (delegate as any)[sandboxMethod].bind(delegate);
     });
 
     return sandbox;

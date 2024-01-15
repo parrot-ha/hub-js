@@ -53,8 +53,7 @@ export class ServiceFactory {
         this.getDeviceService(),
         this.getSmartAppService(),
         this.getEventService(),
-        this.getLocationService(),
-        this.getScheduleService()
+        this.getLocationService()
       );
     }
     return this.entityService;
@@ -82,7 +81,9 @@ export class ServiceFactory {
 
   public getScheduleService(): ScheduleService {
     if (!this._scheduleService) {
-      this._scheduleService = new ScheduleServiceNS(this.getEntityService());
+      let ssns = new ScheduleServiceNS();
+      ssns.entityService = this.getEntityService();
+      this._scheduleService = ssns;
     }
     return this._scheduleService;
   }
