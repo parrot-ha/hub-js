@@ -65,6 +65,8 @@ export class EntityService extends EventEmitter {
     event.source = "DEVICE";
     event.sourceId = device.id;
     event.displayName = device.displayName;
+    event.sourceId = device.id;
+    event.displayName = device.displayName;
     this.processEvent(event);
   }
 
@@ -80,6 +82,7 @@ export class EntityService extends EventEmitter {
   }
 
   private processEvent(event: ParrotEvent): void {
+    logger.debug("process event!", JSON.stringify(event));
     logger.debug("process event!", JSON.stringify(event));
     // skip any events that have a null name
     if (event.name == null) {
@@ -435,6 +438,12 @@ export class EntityService extends EventEmitter {
       null,
       null
     );
+    let dynamicPageResponse: any = this.runSmartAppMethodWithReturn(
+      id,
+      content,
+      null,
+      null
+    );
 
     if (dynamicPageResponse) {
       dynamicPageResponse.content = content;
@@ -449,12 +458,17 @@ export class EntityService extends EventEmitter {
     installedSmartApp: InstalledSmartApp,
     includeMappings: boolean = false
   ): any {
+  private buildSmartAppSandbox(
+    installedSmartApp: InstalledSmartApp,
+    includeMappings: boolean = false
+  ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger(
       "SMARTAPP",
       installedSmartApp.id,
       installedSmartApp.displayName
     );
+
 
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       installedSmartApp,
@@ -483,6 +497,11 @@ export class EntityService extends EventEmitter {
     let settingsHandler = this.buildSmartAppSettingsHandler(installedSmartApp);
     const settingsProxy = new Proxy(settingsObject, settingsHandler);
     sandbox["settings"] = settingsProxy;
+    //TODO: use a wrapper
+    sandbox["app"] = installedSmartApp;
+
+    //TODO: use location wrapper
+    sandbox["location"] = this._locationService.getLocation();
     //TODO: use a wrapper
     sandbox["app"] = installedSmartApp;
 
@@ -611,6 +630,9 @@ export class EntityService extends EventEmitter {
       logger.warn(
         `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`
       );
+      logger.warn(
+        `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`
+      );
     }
   }
 
@@ -634,6 +656,7 @@ export class EntityService extends EventEmitter {
       //update state
       this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
+      logger.warn("err with run device method", err);
       logger.warn("err with run device method", err);
     }
   }
