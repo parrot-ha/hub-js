@@ -245,8 +245,8 @@ export default class ZigbeeIntegration
   }
 
   protected zigbeeMessage(msg: MessagePayload) {
-    logger.debug("zigbee message type: " + msg.type);
     if (msg.type != "commandQueryNextImageRequest")
+      logger.debug("zigbee message type: " + msg.type);
       logger.debug(JSON.stringify(msg));
     if (msg.type === "readResponse" || msg.type === "attributeReport") {
       let command = "01";
