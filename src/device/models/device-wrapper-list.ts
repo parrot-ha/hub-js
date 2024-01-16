@@ -31,4 +31,8 @@ export class DeviceWrapperList implements EntityWrapper {
   forEach(callbackfn: (value: DeviceWrapper, index: number, array: DeviceWrapper[]) => void, thisArg?: any): void {
     this._devices.forEach(callbackfn, thisArg);
   }
+
+  find(predicate: (value: DeviceWrapper, index: number, obj: DeviceWrapper[]) => unknown, thisArg?: any): DeviceWrapper | undefined {
+    return this._devices.find(predicate, thisArg);
+  }
 }
