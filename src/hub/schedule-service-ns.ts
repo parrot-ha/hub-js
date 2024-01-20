@@ -294,7 +294,6 @@ export class ScheduleServiceNS implements ScheduleService {
               schedule: parsedFile.schedule,
             };
             let job = this.scheduleJob(jobSchedule);
-            //this._jobs.set(jobSchedule.jobKey, job);
             this._jobInfo.set(jobSchedule.jobKey, jobSchedule);
           }
         } catch (err) {
