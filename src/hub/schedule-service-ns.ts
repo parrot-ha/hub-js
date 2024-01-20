@@ -20,17 +20,17 @@ const logger = require("./logger-service")({
 });
 
 export class ScheduleServiceNS implements ScheduleService {
-  private _jobs: Map<string, any> = new Map<string, any>();
+  private _jobInfo: Map<string, ScheduleType> = new Map<string, ScheduleType>();
   private _entityService: EntityService;
 
-  constructor() {  }
+  constructor() {}
 
   public set entityService(entityService: EntityService) {
     this._entityService = entityService;
   }
 
   private getEntityService(): EntityService {
-    if(this._entityService == null) {
+    if (this._entityService == null) {
       throw new Error("Entity Service is not set in Scheduler!");
     }
     return this._entityService;
@@ -46,7 +46,15 @@ export class ScheduleServiceNS implements ScheduleService {
   }
 
   public getSchedules() {
-    return scheduler.scheduledJobs;
+    return Array.from(this._jobInfo.values());
+  }
+
+  unschedule(
+    entityType: string,
+    entityId: string,
+    handlerMethod: string
+  ): void {
+    this.unscheduleAndDeleteJob(null, entityType, entityId, handlerMethod);
   }
 
   public runIn(
@@ -60,14 +68,14 @@ export class ScheduleServiceNS implements ScheduleService {
     if (options?.overwrite === false) {
       jobKey = `runOnce_${entityType}_${entityId}_${handlerMethod}_${randomUUID()}`;
     } else {
-      //find existing jobs and cancel them.
       jobKey = `runOnce_${entityType}_${entityId}_${handlerMethod}`;
-      for (let key of this._jobs.keys()) {
-        if (key.startsWith(jobKey)) {
-          this._jobs.get(key)?.cancel();
-          this._jobs.delete(key);
-        }
-      }
+      //find existing jobs and cancel them.
+      this.unscheduleAndDeleteJob(
+        "runOnce",
+        entityType,
+        entityId,
+        handlerMethod
+      );
     }
 
     let scheduleRunTime = new Date(Date.now() + delayInSeconds * 1000);
@@ -81,9 +89,7 @@ export class ScheduleServiceNS implements ScheduleService {
       schedule: scheduleRunTime.getTime(),
     };
 
-    const job = this.scheduleJob(jobSchedule);
-
-    this._jobs.set(jobKey, job);
+    this.scheduleJob(jobSchedule);
     this.saveSchedule(jobKey, jobSchedule);
   }
 
@@ -98,31 +104,30 @@ export class ScheduleServiceNS implements ScheduleService {
     if (options?.overwrite === false) {
       jobKey = `runEvery_${entityType}_${entityId}_${handlerMethod}_${randomUUID()}`;
     } else {
-      //find existing jobs and cancel them.
       jobKey = `runEvery_${entityType}_${entityId}_${handlerMethod}`;
-      for (let key of this._jobs.keys()) {
-        if (key.startsWith(jobKey)) {
-          this._jobs.get(key)?.cancel();
-          this._jobs.delete(key);
-        }
-      }
+      //find existing jobs and cancel them.
+      this.unscheduleAndDeleteJob(
+        "runEvery",
+        entityType,
+        entityId,
+        handlerMethod
+      );
     }
 
     let cronExpression: string;
     if (typeof schedule === "string") {
-      let timestamp = Date.parse(schedule);
-      if (isNaN(timestamp)) {
-        cronExpression = schedule;
+      if (
+        /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}-[0-9]{2}:[0-9]{2}/.test(
+          schedule
+        )
+      ) {
+        let scheduleDate = new Date(Date.parse(schedule));
+        cronExpression = this.dateToCron(scheduleDate);
       } else {
-        let scheduleDate = new Date(timestamp);
-        cronExpression = `${
-          scheduleDate.getSeconds
-        } ${scheduleDate.getMinutes()} ${scheduleDate.getHours()} * * *`;
+        cronExpression = schedule;
       }
     } else if (schedule instanceof Date) {
-      cronExpression = `${
-        schedule.getSeconds()
-      } ${schedule.getMinutes()} ${schedule.getHours()} * * *`;
+      cronExpression = this.dateToCron(schedule);
     } else {
       throw new Error("Invalid argument for schedule");
     }
@@ -136,9 +141,19 @@ export class ScheduleServiceNS implements ScheduleService {
       data: options?.data || {},
       schedule: cronExpression,
     };
-    const job = this.scheduleJob(jobSchedule);
-    this._jobs.set(jobKey, job);
+    this.scheduleJob(jobSchedule);
     this.saveSchedule(jobKey, jobSchedule);
+  }
+
+  private dateToCron(date: Date): string {
+    return (
+      date.getSeconds +
+      " " +
+      date.getMinutes() +
+      " " +
+      date.getHours() +
+      " * * *"
+    );
   }
 
   public scheduleDate(
@@ -173,14 +188,16 @@ export class ScheduleServiceNS implements ScheduleService {
     ) {
       try {
         if (jobSchedule.entityType === "SMARTAPP") {
-          entityService.runSmartAppMethod(
-            jobSchedule.entityId,
-            jobSchedule.handlerMethod,
-            jobSchedule.data
-          ).catch((err) => {
-            //TODO: log this to the live log
-            logger.warn("error! scheduled method", err);
-          });
+          entityService
+            .runSmartAppMethod(
+              jobSchedule.entityId,
+              jobSchedule.handlerMethod,
+              jobSchedule.data
+            )
+            .catch((err) => {
+              //TODO: log this to the live log
+              logger.warn("error! scheduled method", err);
+            });
         } else if (jobSchedule.entityType === "DEVICE") {
           entityService.runDeviceMethod(
             jobSchedule.entityId,
@@ -195,11 +212,11 @@ export class ScheduleServiceNS implements ScheduleService {
         logger.warn("error with scheduled runIn", err);
       }
     }.bind(null, this.getEntityService(), this);
-    return scheduler.scheduleJob(schedule, runInFunction);
+    return scheduler.scheduleJob(jobSchedule.jobKey, schedule, runInFunction);
   }
 
   private deleteJob(jobKey: string) {
-    this._jobs.delete(jobKey);
+    this._jobInfo.delete(jobKey);
     try {
       let fileName: string = `userData/config/schedules/${jobKey}.yaml`;
       if (fs.existsSync(fileName)) {
@@ -210,7 +227,31 @@ export class ScheduleServiceNS implements ScheduleService {
     }
   }
 
+  private unscheduleAndDeleteJob(
+    prefix: string,
+    entityType: string,
+    entityId: string,
+    handlerMethod: string
+  ) {
+    let jobKey =
+      (prefix || "") +
+      "_" +
+      entityType +
+      "_" +
+      entityId +
+      "_" +
+      (handlerMethod || "");
+    //find existing jobs and cancel them.
+    for (let key of Object.keys(scheduler.scheduledJobs)) {
+      if (key.includes(jobKey)) {
+        scheduler.cancelJob(key);
+        this.deleteJob(key);
+      }
+    }
+  }
+
   private saveSchedule(jobKey: string, jobSchedule: ScheduleType) {
+    this._jobInfo.set(jobKey, jobSchedule);
     let jobScheduleYaml = YAML.stringify(jobSchedule);
     if (jobScheduleYaml?.trim().length > 0) {
       fs.writeFile(
@@ -253,7 +294,7 @@ export class ScheduleServiceNS implements ScheduleService {
               schedule: parsedFile.schedule,
             };
             let job = this.scheduleJob(jobSchedule);
-            this._jobs.set(jobSchedule.jobKey, job);
+            this._jobInfo.set(jobSchedule.jobKey, jobSchedule);
           }
         } catch (err) {
           logger.warn(`Error loading file ${schDirFile}`);

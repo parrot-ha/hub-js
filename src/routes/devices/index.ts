@@ -178,10 +178,8 @@ module.exports = function (
       deviceService.cancelRemoveDeviceAsync(id);
       res.status(202).end();
     } else {
-      let deviceRemovedPromise: Promise<boolean> = deviceService.removeDeviceAsync(
-        id,
-        force
-      );
+      let deviceRemovedPromise: Promise<boolean> =
+        deviceService.removeDeviceAsync(id, force);
 
       // wait for promise to resolve if we are long polling
       if (longPoll) {
@@ -230,6 +228,14 @@ module.exports = function (
     }
 
     res.json(commands);
+  });
+
+  router.get("/:id/events", (req: Request, res: Response) => {
+    let id: string = req.params.id;
+    let fromDate: Date = new Date();
+    fromDate.setDate(fromDate.getDate() - 7);
+    let events = entityService.eventsSince("DEVICE", id, fromDate, -1);
+    res.json(events);
   });
 
   router.get("/:id/information", (req: Request, res: Response) => {

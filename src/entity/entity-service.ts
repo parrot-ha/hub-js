@@ -24,6 +24,7 @@ import { WebServiceRequest } from "./models/web-service-request";
 import { ScheduleService } from "../hub/schedule-service";
 import { ServiceFactory } from "../hub/service-factory";
 import { DeviceWrapperList } from "../device/models/device-wrapper-list";
+import { ParrotEventWrapper } from "./models/event-wrapper";
 
 const fs = require("fs");
 const vm = require("vm");
@@ -112,6 +113,15 @@ export class EntityService extends EventEmitter {
       );
     });
   }
+
+  public eventsSince( source: string,  sourceId: string,  date: Date, maxEvents: number): ParrotEventWrapper[] {
+    return this._eventService.eventsSince(source, sourceId, date, maxEvents);
+  }
+
+  public eventsBetween( source: string,  sourceId: string, startDate: Date, endDate: Date,  maxEvents: number): ParrotEventWrapper[] {
+    return this._eventService.eventsBetween(source, sourceId, startDate, endDate, maxEvents);
+  };
+
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
     return this._deviceService.getDeviceHandlerPreferencesLayout(

@@ -10,6 +10,7 @@ export abstract class EntityDelegate {
     "httpGet",
     "runIn",
     "schedule",
+    "unschedule",
     "parseLanMessage",
     "now",
     "toDateTime",
@@ -169,6 +170,14 @@ export abstract class EntityDelegate {
       this.entityId,
       typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
       options
+    );
+  }
+
+  public unschedule(handlerMethod: string | Function) {
+    this._scheduleService.unschedule(
+      this.entityType,
+      this.entityId,
+      typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod
     );
   }
 

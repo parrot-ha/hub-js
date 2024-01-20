@@ -11,6 +11,7 @@ import { LocationFileDataStore } from "./location-file-data-store";
 import { IntegrationService } from "../integration/integration-service";
 import { IntegrationFileDataStore } from "../integration/integration-file-data-store";
 import { IntegrationRegistry } from "../integration/integration-registry";
+import { EventMemoryDataStore } from "./event-memory-data-store";
 
 export class ServiceFactory {
   private static _instance: ServiceFactory;
@@ -63,7 +64,7 @@ export class ServiceFactory {
 
   public getEventService(): EventService {
     if (!this.eventService) {
-      this.eventService = new EventService();
+      this.eventService = new EventService(new EventMemoryDataStore());
     }
     return this.eventService;
   }
