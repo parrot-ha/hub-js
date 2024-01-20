@@ -147,7 +147,7 @@ export class ScheduleServiceNS implements ScheduleService {
 
   private dateToCron(date: Date): string {
     return (
-      date.getSeconds +
+      date.getSeconds() +
       " " +
       date.getMinutes() +
       " " +
@@ -163,9 +163,7 @@ export class ScheduleServiceNS implements ScheduleService {
     handlerMethod: string,
     options: any
   ): void {
-    let cronExpression = `${
-      date.getSeconds
-    } ${date.getMinutes()} ${date.getHours()} * * *`;
+    let cronExpression = this.dateToCron(date);
     this.scheduleEvery(
       cronExpression,
       entityType,
