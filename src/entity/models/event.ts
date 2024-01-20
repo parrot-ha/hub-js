@@ -7,6 +7,8 @@ export class ParrotEvent {
   descriptionText: string | undefined;
   displayed: boolean | undefined;
   displayName: string | undefined;
+  hubId: string | undefined;
+  locationId: string | undefined;
   private _isStateChange: boolean;
   unit: string | undefined;
   data: string | undefined;

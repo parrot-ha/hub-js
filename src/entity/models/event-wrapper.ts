@@ -1,4 +1,7 @@
+import { DeviceWrapper } from "../../device/models/device-wrapper";
+import { Location } from "../../hub/models/location";
 import { ParrotEvent } from "./event";
+import { ServiceFactory } from "../../hub/service-factory";
 
 export class ParrotEventWrapper {
   private _event: ParrotEvent;
@@ -52,82 +55,89 @@ export class ParrotEventWrapper {
     return this._event.unit;
   }
 
-  // public Date getDateValue() {
-  //     //TODO: parse value into date
-  //     throw new UnsupportedOperationException();
-  // }
+  get dateValue(): Date {
+    //parse value into date
+    return new Date(Date.parse(this._event.value));
+  }
 
   get description(): string {
     return this._event.description;
   }
 
-  // public DeviceWrapper getDevice() {
-  //     return this._event.getDevice();
-  // }
+  get device(): DeviceWrapper {
+    if (this.deviceId)
+      return new DeviceWrapper(
+        ServiceFactory.getInstance()
+          .getDeviceService()
+          .getDevice(this.deviceId),
+        ServiceFactory.getInstance().getDeviceService()
+      );
+    return null;
+  }
 
-  // public String getDeviceId() {
-  //     if ("DEVICE".equals(this._event.getSource()))
-  //         return this._event.getSourceId();
-  //     return null;
-  // }
+  get deviceId(): string {
+    if ("DEVICE" === this._event.source) return this._event.sourceId;
+    return null;
+  }
 
-  // public Double getDoubleValue() {
-  //     return Double.valueOf(this._event.getValue());
-  // }
+  get hubId(): string {
+    return this._event.hubId;
+  }
 
-  // public Float getFloatValue() {
-  //     return Float.valueOf(this._event.getValue());
-  // }
+  get installedSmartAppId(): string {
+    if ("SMARTAPP" === this._event.source) return this._event.sourceId;
+    return null;
+  }
 
-  // public String getHubId() {
-  //     return event.getHubId();
-  // }
+  get isoDate(): string {
+    return this.dateValue?.toISOString();
+  }
 
-  // public String getInstalledSmartAppId() {
-  //     return getInstalledAutomationAppId();
-  // }
+  get jsonValue(): any {
+    return JSON.parse(this._event.value);
+  }
 
-  // // parrot hub calls them Automation Apps
-  // public String getInstalledAutomationAppId() {
-  //     return this._event.getInstalledAutomationAppId();
-  // }
+  get linkText(): string {
+    return this.displayName;
+  }
 
-  // public Integer getIntegerValue() {
-  //     return Integer.valueOf(this._event.getValue());
-  // }
+  //TODO: return LocationWrapper
+  get location(): Location {
+    //TODO: implement
+    throw new Error("Not Yet Implemented");
+  }
 
-  // public String getIsoDate() {
-  //     return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(this._event.getDate());
-  // }
+  get locationId(): string {
+    return this._event.locationId;
+  }
 
-  // public Object getJsonValue() {
-  //     return new JsonSlurper().parseText(this._event.getValue());
-  // }
+  get integerValue(): number {
+    //This is just here for backwards compatibility, there is no Integer in javascript/typescript
+    return this.numberValue;
+  }
 
-  // public String getLinkText() {
-  //     return getDisplayName();
-  // }
+  get doubleValue(): number {
+    //This is just here for backwards compatibility, there is no Double in javascript/typescript
+    return this.numberValue;
+  }
 
-  // public Object getLocation() {
-  //     //TODO: implement
-  //     throw new UnsupportedOperationException();
-  // }
+  get floatValue(): number {
+    //This is just here for backwards compatibility, there is no Float in javascript/typescript
+    return this.numberValue;
+  }
 
-  // public String getLocationId() {
-  //     return this._event.getLocationId();
-  // }
+  get longValue(): number {
+    //This is just here for backwards compatibility, there is no Long in javascript/typescript
+    return this.numberValue;
+  }
 
-  // public Long getLongValue() {
-  //     return Long.valueOf(this._event.getValue());
-  // }
+  get numberValue(): number {
+    return Number(this._event.value);
+  }
 
-  // public Number getNumberValue() throws ParseException {
-  //     return NumberFormat.getInstance().parse(this._event.getValue());
-  // }
-
-  // public Number getNumericValue() throws ParseException {
-  //     return getNumberValue();
-  // }
+  get numericValue(): number {
+    return this.numberValue;
+  }
 
   get source(): string {
     return this._event.source;
@@ -141,18 +151,17 @@ export class ParrotEventWrapper {
     return this._event.value;
   }
 
-  // public Map<String, BigDecimal> getXyzValue() {
-  //     //TODO: implement
-  //     throw new UnsupportedOperationException();
-  // }
+  get xyzValue(): any {
+    return JSON.parse(this.value);
+  }
 
-  // public boolean isDigital() {
-  //     return this._event.isDigital();
-  // }
+  isDigital(): boolean {
+    return this._event.isDigital;
+  }
 
-  // public boolean isPhysical() {
-  //     return !isDigital();
-  // }
+  isPhysical(): boolean {
+    return !this.isDigital();
+  }
 
   public toString() {
     //TODO: build rest of event
