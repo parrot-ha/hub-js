@@ -235,7 +235,6 @@ module.exports = function (
     let fromDate: Date = new Date();
     fromDate.setDate(fromDate.getDate() - 7);
     let events = entityService.eventsSince("DEVICE", id, fromDate, -1);
-let json = JSON.stringify(events);
     res.json(events);
   });
 
