@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { LocationService } from "../../hub/location-service";
 import { Location } from "../../hub/models/location";
 import { Hub } from "../../hub/models/hub";
+import { ServiceFactory } from "../../hub/service-factory";
 
 const express = require("express");
 
@@ -44,6 +45,12 @@ module.exports = function (locationService: LocationService) {
     };
 
     res.json(model);
+  });
+
+  router.get("/schedules", (req: Request, res: Response) => {
+    let ss = ServiceFactory.getInstance().getScheduleService();
+    let scheds = ss?.getSchedules();
+    res.json(scheds);
   });
 
   router.get("/hub", (req: Request, res: Response) => {

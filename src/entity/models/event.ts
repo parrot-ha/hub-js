@@ -26,8 +26,26 @@ export class ParrotEvent {
       if (properties.value) {
         this.value = properties.value.toString();
       }
-      // TODO: check if state change
-      this._isStateChange = true;
+      if (properties.source != null) {
+        this.source = properties.source.toString();
+      } else {
+        this.source = "ISA";
+      }
+
+      let dataObj = properties.data;
+      if (dataObj != null) {
+        if (dataObj instanceof Map) {
+          this.data = JSON.stringify(Object.fromEntries(dataObj));
+        } else if (typeof dataObj === "object") {
+          this.data = JSON.stringify(dataObj);
+        }
+      }
+
+      if (!properties.hasOwnProperty("isStateChange")) {
+        this._isStateChange = true;
+      } else {
+        this._isStateChange = properties.isStateChange;
+      }
 
       // TODO: extract rest of properties
     }
@@ -37,8 +55,17 @@ export class ParrotEvent {
     return this._isStateChange;
   }
 
+  get description(): string {
+    // TODO: return "raw" description
+    return null;
+  }
+
   public toString() {
     //TODO: build rest of event
     return "Event(name: " + this.name + " value: " + this.value + ")";
+  }
+
+  public toJSON() {
+    return { id: this.id, name: this.name, value: this.value, date: this.date };
   }
 }

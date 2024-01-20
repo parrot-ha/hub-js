@@ -3,64 +3,133 @@ import { Subscription } from "../entity/models/subscription";
 import fs from "fs";
 import * as crypto from "crypto";
 import YAML from "yaml";
+import { EventDataStore } from "./event-data-store";
+import { ParrotEventWrapper } from "../entity/models/event-wrapper";
 
 export class EventService {
   private _subscriptionInfo: Map<string, Subscription>;
   private _deviceToSubscriptionMap: Map<string, string[]>;
   private _locationToSubscriptionMap: Map<string, string[]>;
 
-  getSubscribedSmartApps(event: ParrotEvent): Subscription[] {
+  private _eventDataStore: EventDataStore;
 
+  public constructor(eventDataStore: EventDataStore) {
+    this._eventDataStore = eventDataStore;
+  }
+
+  getSubscribedSmartApps(event: ParrotEvent): Subscription[] {
     let subscribedApps: Subscription[] = [];
 
     // look up subscription
     if ("DEVICE" === event.source) {
-        let subscriptions: string[] = this.getSubscriptionListForDevice(event.sourceId);
-        if (subscriptions != null && subscriptions.length > 0) {
-          subscriptions.forEach((subscriptionId: string) => {
-            let subscriptionInfo: Subscription = this.getSubscriptionInfoById(subscriptionId);
-                if (subscriptionInfo != null) {
-                    let attributeNameAndValue: string = subscriptionInfo.attributeNameAndValue;
-                    if (attributeNameAndValue == null || event.name != null && (event.name === attributeNameAndValue ||
-                            (event.value != null && (event.name + "." + event.value) === attributeNameAndValue))) {
-                        let handlerMethod: string = subscriptionInfo.handlerMethod;
-                        let installedAutomationAppId: string = subscriptionInfo.subscribedAppId;
-                        // if subscription has filter events = false or event is a state change
-                        if ((!subscriptionInfo.filterEvents || event.isStateChange()) && handlerMethod != null &&
-                                installedAutomationAppId != null) {
-                            subscribedApps.push(subscriptionInfo);
-                        }
-                    }
-                }
-              })
-        }
+      let subscriptions: string[] = this.getSubscriptionListForDevice(
+        event.sourceId
+      );
+      if (subscriptions != null && subscriptions.length > 0) {
+        subscriptions.forEach((subscriptionId: string) => {
+          let subscriptionInfo: Subscription =
+            this.getSubscriptionInfoById(subscriptionId);
+          if (subscriptionInfo != null) {
+            let attributeNameAndValue: string =
+              subscriptionInfo.attributeNameAndValue;
+            if (
+              attributeNameAndValue == null ||
+              (event.name != null &&
+                (event.name === attributeNameAndValue ||
+                  (event.value != null &&
+                    event.name + "." + event.value === attributeNameAndValue)))
+            ) {
+              let handlerMethod: string = subscriptionInfo.handlerMethod;
+              let installedAutomationAppId: string =
+                subscriptionInfo.subscribedAppId;
+              // if subscription has filter events = false or event is a state change
+              if (
+                (!subscriptionInfo.filterEvents || event.isStateChange()) &&
+                handlerMethod != null &&
+                installedAutomationAppId != null
+              ) {
+                subscribedApps.push(subscriptionInfo);
+              }
+            }
+          }
+        });
+      }
     } else if ("HUB" === event.source || "LOCATION" === event.source) {
-        // hub events are location events
-        let subscriptions: string[] = Array.from(new Set(Array.from(this.getLocationToSubscriptionMap().values()).flatMap((arr) => arr)));
-        if (subscriptions != null && subscriptions.length > 0) {
-          subscriptions.forEach((subscriptionId: string) => {
-            let subscriptionInfo: Subscription = this.getSubscriptionInfoById(subscriptionId);
-                if (subscriptionInfo != null) {
-                    let attributeNameAndValue: string = subscriptionInfo.attributeNameAndValue;
-                    if (attributeNameAndValue == null || (event.name != null && (event.name === attributeNameAndValue ||
-                            (event.value != null && (event.name + "." + event.value) === attributeNameAndValue)))) {
-                        let handlerMethod: string = subscriptionInfo.handlerMethod;
-                        let installedAutomationAppId: string = subscriptionInfo.subscribedAppId;
-                        if ((!subscriptionInfo.filterEvents || event.isStateChange()) && handlerMethod != null &&
-                                installedAutomationAppId != null) {
-                            subscribedApps.push(subscriptionInfo);
-                        }
-                    }
-                }
-            })
-        }
-
+      // hub events are location events
+      let subscriptions: string[] = Array.from(
+        new Set(
+          Array.from(this.getLocationToSubscriptionMap().values()).flatMap(
+            (arr) => arr
+          )
+        )
+      );
+      if (subscriptions != null && subscriptions.length > 0) {
+        subscriptions.forEach((subscriptionId: string) => {
+          let subscriptionInfo: Subscription =
+            this.getSubscriptionInfoById(subscriptionId);
+          if (subscriptionInfo != null) {
+            let attributeNameAndValue: string =
+              subscriptionInfo.attributeNameAndValue;
+            if (
+              attributeNameAndValue == null ||
+              (event.name != null &&
+                (event.name === attributeNameAndValue ||
+                  (event.value != null &&
+                    event.name + "." + event.value === attributeNameAndValue)))
+            ) {
+              let handlerMethod: string = subscriptionInfo.handlerMethod;
+              let installedAutomationAppId: string =
+                subscriptionInfo.subscribedAppId;
+              if (
+                (!subscriptionInfo.filterEvents || event.isStateChange()) &&
+                handlerMethod != null &&
+                installedAutomationAppId != null
+              ) {
+                subscribedApps.push(subscriptionInfo);
+              }
+            }
+          }
+        });
+      }
     }
     return subscribedApps;
   }
 
   saveEvent(event: ParrotEvent): void {
     //TODO: save event in database
+    this._eventDataStore.saveEvent(event);
+  }
+
+  public eventsSince(
+    source: string,
+    sourceId: string,
+    date: Date,
+    maxEvents: number
+  ): ParrotEventWrapper[] {
+    let events = this._eventDataStore.eventsSince(
+      source,
+      sourceId,
+      date,
+      maxEvents
+    );
+    return events?.map((evt) => new ParrotEventWrapper(evt));
+  }
+
+  public eventsBetween(
+    source: string,
+    sourceId: string,
+    startDate: Date,
+    endDate: Date,
+    maxEvents: number
+  ): ParrotEventWrapper[] {
+    let events = this._eventDataStore.eventsBetween(
+      source,
+      sourceId,
+      startDate,
+      endDate,
+      maxEvents
+    );
+    return events?.map((evt) => new ParrotEventWrapper(evt));
   }
 
   public addDeviceSubscription(
@@ -101,12 +170,11 @@ export class EventService {
 
   private getSubscriptionListForDevice(deviceId: string): string[] {
     return this.getDeviceToSubscriptionMap().get(deviceId);
-}
+  }
 
-
-private getSubscriptionInfoById(subscriptionId: string): Subscription {
-  return this.getSubscriptionInfo().get(subscriptionId);
-}
+  private getSubscriptionInfoById(subscriptionId: string): Subscription {
+    return this.getSubscriptionInfo().get(subscriptionId);
+  }
 
   private getSubscriptionInfo(): Map<string, Subscription> {
     if (!this._subscriptionInfo) {
@@ -148,7 +216,10 @@ private getSubscriptionInfoById(subscriptionId: string): Subscription {
 
     try {
       if (fs.existsSync("userData/config/subscriptions.yaml")) {
-        const data = fs.readFileSync("userData/config/subscriptions.yaml", "utf-8");
+        const data = fs.readFileSync(
+          "userData/config/subscriptions.yaml",
+          "utf-8"
+        );
         if (data) {
           let parsedFile = YAML.parse(data);
           if (parsedFile && Array.isArray(parsedFile)) {

@@ -25,7 +25,6 @@ export class SmartAppDelegate extends EntityDelegate {
     "getSunriseAndSunset",
     "subscribe",
     "unsubscribe",
-    "unschedule",
     "createAccessToken",
     "definition",
     "preferences",
@@ -158,10 +157,6 @@ export class SmartAppDelegate extends EntityDelegate {
 
   unsubscribe(entity: any, attributeName: string, handlerMethod: string): void {
     console.log("unsubscribe");
-  }
-
-  unschedule(handlerMethod: string): void {
-    console.log("unschedule");
   }
 
   render(params: any): WebServiceResponse {

@@ -5,6 +5,8 @@ export interface ScheduleService {
 
   getSchedules(): any;
 
+  unschedule(entityType: string, entityId: string, handlerMethod: string): void;
+
   runIn(
     delayInSeconds: number,
     entityType: string,
