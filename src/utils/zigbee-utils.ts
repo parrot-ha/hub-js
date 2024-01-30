@@ -29,7 +29,7 @@ export class ZigBeeUtils {
       return null;
     }
   }
-  
+
   public parseDescriptionAsMap(description: string): Map<string, any> {
     if (description == null) {
       return null;
@@ -294,6 +294,82 @@ export class ZigBeeUtils {
       arrayList.push("delay " + delay);
     }
 
+    return arrayList;
+  }
+
+  // zigbee.levelConfig():
+  // [zdo bind 0xFC6E 0x01 0x01 0x0008 {000D6F00055D8FA6} {}, delay 2000, st cr 0xFC6E 0x01 0x0008 0x0000 0x20 0x0001 0x0E10 {01}, delay 2000]
+  //zigbee.levelConfig("ABC", "CDF","XYZ")
+  //[zdo bind 0xFC6E 0x01 0x01 0x0008 {000D6F00055D8FA6} {}, delay 2000, st cr 0xFC6E 0x01 0x0008 0x0000 0x20 0x0ABC 0x0CDF {XYZ}, delay 2000]
+  public levelConfig(
+    minReportTime: number = 1,
+    maxReportTime: number = 3600,
+    reportableChange: number = 1,
+    delay: number = ZigBeeUtils.DEFAULT_DELAY
+  ): Array<string> {
+    let arrayList = new Array<string>();
+    arrayList.push(
+      `zdo bind 0x${
+        this._device.deviceNetworkId
+      } 0x${this.getFormattedDeviceEndpoint()} 0x01 0x0008 {${
+        this._device.zigbeeId
+      }} {}`
+    );
+    if (delay > 0) {
+      arrayList.push("delay " + delay);
+    }
+    if (reportableChange < 1) {
+      reportableChange = 1;
+    }
+    arrayList.push(
+      `ph cr 0x${
+        this._device.deviceNetworkId
+      } 0x${this.getFormattedDeviceEndpoint()} 0x0008 0x0000 0x20 0x${numberToHexString(
+        minReportTime,
+        2
+      )} 0x${numberToHexString(maxReportTime, 2)} {${
+        reportableChange != null ? DataType.pack(reportableChange, 0x20) : ""
+      }}`
+    );
+
+    if (delay > 0) {
+      arrayList.push("delay " + delay);
+    }
+
+    return arrayList;
+  }
+
+  public setLevel(
+    level: number,
+    rate: number = 0xffff,
+    delay: number = ZigBeeUtils.DEFAULT_DELAY
+  ): Array<string> {
+    let arrayList = new Array<string>();
+    // level is 0 - 254
+    if (level > 100) {
+      level = 100;
+    } else if (level < 0) {
+      level = 0;
+    }
+    level = Math.round((level / 100.0) * 254.0);
+    if (rate < 0) {
+      rate = 0;
+    }
+    if (rate > 100 && rate != 0xffff) {
+      rate = 100;
+    }
+
+    arrayList.push(
+      `ph cmd 0x${
+        this._device.deviceNetworkId
+      } 0x${this.getFormattedDeviceEndpoint()} 0x0008 0x04 {${numberToHexString(
+        level,
+        1
+      )} ${DataType.pack(rate, DataType.UINT16, true)}}`
+    );
+    if (delay > 0) {
+      arrayList.push("delay " + delay);
+    }
     return arrayList;
   }
 
