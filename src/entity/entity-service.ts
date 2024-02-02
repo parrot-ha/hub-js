@@ -17,7 +17,7 @@ import { isEmpty } from "../utils/string-utils";
 import { buildDeviceSettingsHandler } from "./entity-service-helper";
 import EventEmitter from "node:events";
 import { HubAction } from "../device/models/hub-action";
-import { ZigBeeUtils } from "../utils/zigbee-utils";
+import { ZigBeeUtils } from "../zigbee/zigbee-utils";
 import { DataType } from "../utils/data-type";
 import { WebServiceResponse } from "./models/web-service-response";
 import { WebServiceRequest } from "./models/web-service-request";
