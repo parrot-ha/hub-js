@@ -34,6 +34,11 @@ describe("parse description as map", () => {
 });
 
 describe("parse description as object", () => {
+  test("parse empty string", () => {
+    let zigbee = createZigbee();
+    let parsedDescription = zigbee.parseDescriptionAsObject("");
+    expect(parsedDescription).toBeNull();
+  });
   test("parse read attr", () => {
     let zigbee = createZigbee();
     let parsedDescription = zigbee.parseDescriptionAsObject(
@@ -54,7 +59,7 @@ describe("level config", () => {
     expect(lc.length).toBe(4);
     expect(lc[0]).toBe("zdo bind 0x1234 0x01 0x01 0x0008 {0123456789} {}");
     expect(lc[2]).toBe(
-      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0001 0x0e10 {01}"
+      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0001 0x0e10 {01} {}"
     );
   });
 
@@ -66,7 +71,7 @@ describe("level config", () => {
     expect(lc.length).toBe(4);
     expect(lc[0]).toBe("zdo bind 0x1234 0x01 0x01 0x0008 {0123456789} {}");
     expect(lc[2]).toBe(
-      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0064 0x0e10 {01}"
+      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0064 0x0e10 {01} {}"
     );
   });
 
@@ -78,7 +83,7 @@ describe("level config", () => {
     expect(lc.length).toBe(4);
     expect(lc[0]).toBe("zdo bind 0x1234 0x01 0x01 0x0008 {0123456789} {}");
     expect(lc[2]).toBe(
-      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0005 0x0014 {01}"
+      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0005 0x0014 {01} {}"
     );
   });
 
@@ -90,7 +95,7 @@ describe("level config", () => {
     expect(lc.length).toBe(4);
     expect(lc[0]).toBe("zdo bind 0x1234 0x01 0x01 0x0008 {0123456789} {}");
     expect(lc[2]).toBe(
-      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0008 0x0019 {02}"
+      "ph cr 0x1234 0x01 0x0008 0x0000 0x20 0x0008 0x0019 {02} {}"
     );
   });
 });
@@ -102,7 +107,7 @@ describe("set level", () => {
     let sl = zigbee.setLevel(100);
     expect(sl).toBeDefined();
     expect(sl.length).toBe(2);
-    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {fe ffff}");
+    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {fe ffff} {}");
   });
 
   test("level config with minimum report time of 100", () => {
@@ -111,7 +116,7 @@ describe("set level", () => {
     let sl = zigbee.setLevel(12);
     expect(sl).toBeDefined();
     expect(sl.length).toBe(2);
-    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {1e ffff}");
+    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {1e ffff} {}");
   });
 
   test("level config with minimum report time of 5 and maximum report time of 20", () => {
@@ -120,7 +125,7 @@ describe("set level", () => {
     let sl = zigbee.setLevel(100, 100);
     expect(sl).toBeDefined();
     expect(sl.length).toBe(2);
-    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {fe 6400}");
+    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {fe 6400} {}");
   });
 
   test("level config with minimum report time of 8 and maximum report time of 25 and reportable change of 2", () => {
@@ -129,7 +134,7 @@ describe("set level", () => {
     let sl = zigbee.setLevel(1.0);
     expect(sl).toBeDefined();
     expect(sl.length).toBe(2);
-    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {03 ffff}");
+    expect(sl[0]).toBe("ph cmd 0x1234 0x01 0x0008 0x04 {03 ffff} {}");
   });
 });
 
