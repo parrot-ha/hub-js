@@ -46,8 +46,15 @@ export function parse(payload: ZclPayload): [string, string] {
       status = dataArr[dataLoc++];
     }
     if (status != 0) {
-      //TODO: build catchall
-      console.log("need to build catchall");
+      //build catchall
+      return createCatchAllMessageWithPreParsedData(
+        payload,
+        clusterId,
+        endpoint,
+        dni,
+        command,
+        numberArrayToHexString(dataArr.slice(dataLoc - 3)).toUpperCase()
+      );
     }
 
     let encoding = dataArr[dataLoc];
@@ -55,7 +62,6 @@ export function parse(payload: ZclPayload): [string, string] {
       dataArr.slice(dataLoc + 1)
     ).toUpperCase();
     let dataTypeSize = DataType.getLength(encoding);
-    // let dataTypeSize = 1;
 
     let msgStr =
       "read attr - raw: " +
@@ -86,10 +92,70 @@ export function parse(payload: ZclPayload): [string, string] {
       value;
 
     return [dni, msgStr];
+  } else {
+    return createCatchAllMessage(payload);
   }
 }
 
+// return a catch all
+// Smartthings format:
+// catchall: 0104 0006 01 01 0040 00 2A7F 00 00 0000 0B 01 0000
+// catchall: 0104        0006         01               01                    0040        00            3F21  00                   00                       0000               0B         01             0000
+//           [profileId] [clusterId] [sourceEndpoint] [destinationEndpoint] [options]   [messageType] [dni] [isClusterSpecific]  [isManufacturerSpecific]  [manufacturerId]  [command]  [direction]    [data]
+// Our format is going to be slightly different. Since we support more than just ember, some fields don't make sense here.
+// catchall: 0006         01               01                    3F21  00                   00                       0000               0B         01             0000
+//           [clusterId] [sourceEndpoint] [destinationEndpoint] [dni] [isClusterSpecific]  [isManufacturerSpecific]  [manufacturerId]  [command]  [direction]    [data]
+// should we add group information?
 function createCatchAllMessage(payload: ZclPayload): [string, string] {
+  return createCatchAllMessageWithPreParsedData(
+    payload,
+    numberToHexString(payload.clusterID, 2).toUpperCase(),
+    numberToHexString(payload.endpoint, 1).toUpperCase(),
+    typeof payload.address === "string"
+      ? payload.address
+      : numberToHexString(payload.address, 2).toUpperCase(),
+    numberToHexString(payload.header.commandIdentifier, 1).toUpperCase(),
+    numberArrayToHexString(
+      [...payload.data].slice(
+        payload.header.frameControl.manufacturerSpecific ? 5 : 3
+      )
+    ).toUpperCase()
+  );
+}
 
-    return [null, null];
+function createCatchAllMessageWithPreParsedData(
+  payload: ZclPayload,
+  clusterId: string,
+  sourceEndpoint: string,
+  dni: string,
+  command: string,
+  data: string
+): [string, string] {
+  let destEndpoint = numberToHexString(
+    payload.destinationEndpoint,
+    1
+  ).toUpperCase();
+  let msgStr =
+    "catchall: " + // TODO: can we get the actual profile instead of hard coding it.
+    clusterId +
+    " " +
+    sourceEndpoint +
+    " " +
+    destEndpoint +
+    " " +
+    dni +
+    " " +
+    numberToHexString(payload.header.frameControl.frameType, 1).toUpperCase() +
+    (payload.header.frameControl.manufacturerSpecific ? " 01 " : " 00 ") +
+    (payload.header.manufacturerCode == null
+      ? "0000"
+      : numberToHexString(payload.header.manufacturerCode, 2).toUpperCase()) +
+    " " +
+    command +
+    " " +
+    numberToHexString(payload.header.frameControl.direction, 1).toUpperCase() +
+    " " +
+    data;
+
+  return [dni, msgStr];
 }
