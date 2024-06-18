@@ -13,6 +13,7 @@ export class DeviceDelegate extends EntityDelegate {
     "sendEvent",
     "getChildDevices",
     "addChildDevice",
+    "include",
   ];
 
   constructor(
@@ -47,6 +48,10 @@ export class DeviceDelegate extends EntityDelegate {
     if (this._device?.id) {
       this._entityService.sendDeviceEvent(eventMap, this._device);
     }
+  }
+
+  public include(includeValue: string) {
+    // do nothing, this is handled at the device handler level
   }
 
   getChildDevices(): DeviceWrapper[] {

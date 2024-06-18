@@ -677,7 +677,7 @@ export class EntityService extends EventEmitter {
     if (deviceHandler.includes != null) {
       deviceHandler.includes.forEach((include) => {
         if (include === "zigbee.zcl.DataType") {
-          sandbox["DataType"] = new DataType();
+          sandbox["DataType"] = DataType;
         }
         //TODO: handle async http
       });
@@ -725,7 +725,7 @@ export class EntityService extends EventEmitter {
         }
         return retVal;
       } catch (err) {
-        logger.warn(err);
+        logger.warn("Error with run entity method, context method", err);
       }
     } else {
       //TODO: do something about missing methods

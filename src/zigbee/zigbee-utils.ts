@@ -86,37 +86,37 @@ export class ZigBeeUtils {
       let rawDescription = description.substring("catchall: ".length);
       let descriptionArray = rawDescription.split(" ");
       descriptionMap.set("raw", rawDescription);
-      descriptionMap.set("profileId", descriptionArray[0].trim());
-      descriptionMap.set("clusterId", descriptionArray[1].trim());
-      descriptionMap.set("sourceEndpoint", descriptionArray[2].trim());
-      descriptionMap.set("destinationEndpoint", descriptionArray[3].trim());
-      descriptionMap.set("options", descriptionArray[4].trim());
-      descriptionMap.set("messageType", descriptionArray[5].trim());
-      descriptionMap.set("dni", descriptionArray[6].trim());
+      // descriptionMap.set("profileId", descriptionArray[0].trim());
+      descriptionMap.set("clusterId", descriptionArray[0].trim());
+      descriptionMap.set("sourceEndpoint", descriptionArray[1].trim());
+      descriptionMap.set("destinationEndpoint", descriptionArray[2].trim());
+      // descriptionMap.set("options", descriptionArray[4].trim());
+      // descriptionMap.set("messageType", descriptionArray[5].trim());
+      descriptionMap.set("dni", descriptionArray[3].trim());
       descriptionMap.set(
         "isClusterSpecific",
-        descriptionArray[7].trim() === "01"
+        descriptionArray[4].trim() === "01"
       );
       descriptionMap.set(
         "isManufacturerSpecific",
-        descriptionArray[8].trim() === "01"
+        descriptionArray[5].trim() === "01"
       );
-      descriptionMap.set("manufacturerId", descriptionArray[9].trim());
-      descriptionMap.set("command", descriptionArray[10].trim());
-      descriptionMap.set("direction", descriptionArray[11].trim());
-      if (descriptionArray.length > 12) {
-        let dataList = descriptionArray[12].trim().split("(?<=\\G.{2})");
+      descriptionMap.set("manufacturerId", descriptionArray[6].trim());
+      descriptionMap.set("command", descriptionArray[7].trim());
+      descriptionMap.set("direction", descriptionArray[8].trim());
+      if (descriptionArray.length > 9) {
+        let dataList = descriptionArray[9].trim().split("(?<=\\G.{2})");
         descriptionMap.set("data", dataList);
       } else {
         descriptionMap.set("data", [] as Array<string>);
       }
       descriptionMap.set(
         "clusterInt",
-        hexStringToInt(descriptionArray[1].trim())
+        hexStringToInt(descriptionArray[0].trim())
       );
       descriptionMap.set(
         "commandInt",
-        hexStringToInt(descriptionArray[10].trim())
+        hexStringToInt(descriptionArray[7].trim())
       );
 
       return descriptionMap;
