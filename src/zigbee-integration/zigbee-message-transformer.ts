@@ -85,7 +85,7 @@ export function sendZigbeeMessage(msg: string, controller: any) {
     if (manufacturer != null) {
       options.manufacturerCode = manufacturer;
     }
-    
+
     endpoint
       .read(cluster, [attribute], options)
       .then((data) => {})
