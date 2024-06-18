@@ -17,7 +17,7 @@ import { isEmpty } from "../utils/string-utils";
 import { buildDeviceSettingsHandler } from "./entity-service-helper";
 import EventEmitter from "node:events";
 import { HubAction } from "../device/models/hub-action";
-import { ZigBeeUtils } from "../utils/zigbee-utils";
+import { ZigBeeUtils } from "../zigbee/zigbee-utils";
 import { DataType } from "../utils/data-type";
 import { WebServiceResponse } from "./models/web-service-response";
 import { WebServiceRequest } from "./models/web-service-request";
@@ -677,7 +677,7 @@ export class EntityService extends EventEmitter {
     if (deviceHandler.includes != null) {
       deviceHandler.includes.forEach((include) => {
         if (include === "zigbee.zcl.DataType") {
-          sandbox["DataType"] = new DataType();
+          sandbox["DataType"] = DataType;
         }
         //TODO: handle async http
       });
@@ -725,7 +725,7 @@ export class EntityService extends EventEmitter {
         }
         return retVal;
       } catch (err) {
-        logger.warn(err);
+        logger.warn("Error with run entity method, context method", err);
       }
     } else {
       //TODO: do something about missing methods
