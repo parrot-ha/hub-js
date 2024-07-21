@@ -28,7 +28,7 @@ metadata(() => {
         model: "3210-L",
         deviceJoinName: "Smartthings Outlet",
       });
-    }
+    },
   );
 });
 
@@ -44,7 +44,7 @@ function parse(description) {
 
 function on() {
   //return zigbee.on();
-  return [`ph cmd 0x${device.deviceNetworkId} 0x01 6 1 {}`]
+  return [`ph cmd 0x${device.deviceNetworkId} 0x01 6 1 {}`];
 }
 
 function off() {
@@ -56,7 +56,7 @@ function refresh() {
 }
 
 function configure() {
-  log.debug("configure zigbee outlet")
+  log.debug("configure zigbee outlet");
   return [
     `zdo bind 0x${device.deviceNetworkId} 0x01 0x01 0x0006 {${device.zigbeeId}} {}`,
     `delay 300`,

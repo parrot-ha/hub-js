@@ -126,7 +126,7 @@ function contactSensorEvent(evt) {
           "turnOffLights",
           {
             data: { switchIdList: state.switchIdList },
-          }
+          },
         );
       }
     } else if (evt.value == "closed") {
@@ -143,7 +143,7 @@ function contactSensorEvent(evt) {
           "turnOffLights",
           {
             data: { switchIdList: state.switchIdList },
-          }
+          },
         );
       }
     }
@@ -169,7 +169,7 @@ function turnOffLights(data) {
       "turnOffLights",
       {
         data: { switchIdList: state.switchIdList },
-      }
+      },
     );
   } else {
     settings.switches.forEach((mySwitch) => {

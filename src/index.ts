@@ -3,6 +3,9 @@ import { ServiceFactory } from "./hub/service-factory";
 import { setupSystem, shutdownSystem } from "./hub/hub-setup";
 import WebSocket from "ws";
 const logger = require("./hub/logger-service")({ source: "main" });
+// alternate import for logger (combined with export update in file)
+//import loggerInit from "./hub/logger-service";
+//const logger = loggerInit({ source: "main" });
 
 // set up system for running
 setupSystem();
@@ -11,6 +14,9 @@ const app: Application = express();
 
 app.use(express.json()); // for parsing application/json
 
+const path = __dirname + "/ui/";
+app.use(express.static(path));
+
 // include routes/controllers
 require("./routes")(
   app,
@@ -18,7 +24,7 @@ require("./routes")(
   ServiceFactory.getInstance().getSmartAppService(),
   ServiceFactory.getInstance().getEntityService(),
   ServiceFactory.getInstance().getLocationService(),
-  ServiceFactory.getInstance().getIntegrationService()
+  ServiceFactory.getInstance().getIntegrationService(),
 );
 
 const port = process.env.PORT || 6501;
@@ -28,7 +34,7 @@ const server = app.listen(port, () => {
 
 const websocketServer: WebSocket.Server = require("./routes/websocket")(
   server,
-  ServiceFactory.getInstance().getEntityService()
+  ServiceFactory.getInstance().getEntityService(),
 );
 
 const exitFunction = () => {
