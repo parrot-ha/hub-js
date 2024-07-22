@@ -56,7 +56,7 @@ describe("Test Smart App Delegate", () => {
 
   test("create page with function containing section", () => {
     let samd = new SmartAppDelegate();
-    samd.page({name: "myPage", title: "my title"}, () => {
+    samd.page({ name: "myPage", title: "my title" }, () => {
       samd.section();
     });
     expect(samd.metadataValue.preferences).toBeDefined();

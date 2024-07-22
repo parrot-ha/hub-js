@@ -24,3 +24,9 @@ if (process.env.NODE_ENV != "production") {
 module.exports = function (metadata: any = { source: "default" }) {
   return _winstonLogger.child(metadata);
 };
+
+// alternate export - this may be the right way to export?  Requires
+// updates to all the usages in the platform
+//export default function (metadata: any = { source: "default" }) {
+  // return _winstonLogger.child(metadata);
+// };
