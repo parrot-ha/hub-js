@@ -122,6 +122,9 @@ export class EntityService extends EventEmitter {
     return this._eventService.eventsBetween(source, sourceId, startDate, endDate, maxEvents);
   };
 
+  public getSchedule(type: string, id: string): any[] {
+    return this.scheduleService.getSchedulesForEntity(type, id);
+  }
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
     return this._deviceService.getDeviceHandlerPreferencesLayout(

@@ -1,9 +1,21 @@
+export type ScheduleType = {
+  jobKey: string;
+  jobType: string;
+  entityType: string;
+  entityId: string;
+  handlerMethod: string;
+  data: any;
+  schedule: number | string;
+};
+
 export interface ScheduleService {
   initialize(): void;
 
   shutdown(): Promise<any>;
 
-  getSchedules(): any;
+  getSchedules(): ScheduleType[];
+
+  getSchedulesForEntity(entityType: string, entityId: string): ScheduleType[]
 
   unschedule(entityType: string, entityId: string, handlerMethod: string): void;
 

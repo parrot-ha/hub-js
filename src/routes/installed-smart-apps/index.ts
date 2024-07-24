@@ -149,15 +149,11 @@ module.exports = function (
       });
   });
 
-  // router.get("/:id/schedules", (req: Request, res: Response) => {
-  //     let id: string = req.params.id;
-
-  //     List<Map<String, String>> scheduleList = scheduleService.getSchedulesForInstalledSmartApp(id);
-
-  //     ctx.status(200);
-  //     ctx.contentType("application/json");
-  //     ctx.result(new JsonBuilder(scheduleList).toString());
-  // });
+  router.get("/:id/schedules", (req: Request, res: Response) => {
+      let id: string = req.params.id;
+      let schedules = entityService.getSchedule("SMARTAPP", id);
+      res.json(schedules);
+  });
 
   // router.get("/:id/child-apps", (req: Request, res: Response) => {
   //     // get the installed child apps of an installed smart app
