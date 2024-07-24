@@ -3,17 +3,8 @@ import { randomUUID } from "crypto";
 import { EntityService } from "../entity/entity-service";
 import YAML from "yaml";
 import fs from "fs";
-import { ScheduleService } from "./schedule-service";
+import { ScheduleService, ScheduleType } from "./schedule-service";
 
-type ScheduleType = {
-  jobKey: string;
-  jobType: string;
-  entityType: string;
-  entityId: string;
-  handlerMethod: string;
-  data: any;
-  schedule: number | string;
-};
 
 const logger = require("./logger-service")({
   source: "ScheduleService",
@@ -45,14 +36,25 @@ export class ScheduleServiceNS implements ScheduleService {
     return scheduler.gracefulShutdown();
   }
 
-  public getSchedules() {
+  public getSchedules(): ScheduleType[] {
     return Array.from(this._jobInfo.values());
+  }
+
+  public getSchedulesForEntity(
+    entityType: string,
+    entityId: string,
+  ): ScheduleType[] {
+    let jobKey = "_" + entityType + "_" + entityId + "_";
+    //find jobs
+    return Array.from(this._jobInfo.values()).filter((jobInfo) =>
+      jobInfo.jobKey.includes(jobKey),
+    );
   }
 
   unschedule(
     entityType: string,
     entityId: string,
-    handlerMethod: string
+    handlerMethod: string,
   ): void {
     this.unscheduleAndDeleteJob(null, entityType, entityId, handlerMethod);
   }
@@ -62,7 +64,7 @@ export class ScheduleServiceNS implements ScheduleService {
     entityType: string,
     entityId: string,
     handlerMethod: string,
-    options: any
+    options: any,
   ) {
     let jobKey: string;
     if (options?.overwrite === false) {
@@ -74,7 +76,7 @@ export class ScheduleServiceNS implements ScheduleService {
         "runOnce",
         entityType,
         entityId,
-        handlerMethod
+        handlerMethod,
       );
     }
 
@@ -98,7 +100,7 @@ export class ScheduleServiceNS implements ScheduleService {
     entityType: string,
     entityId: string,
     handlerMethod: string,
-    options: any
+    options: any,
   ): void {
     let jobKey: string;
     if (options?.overwrite === false) {
@@ -110,7 +112,7 @@ export class ScheduleServiceNS implements ScheduleService {
         "runEvery",
         entityType,
         entityId,
-        handlerMethod
+        handlerMethod,
       );
     }
 
@@ -118,7 +120,7 @@ export class ScheduleServiceNS implements ScheduleService {
     if (typeof schedule === "string") {
       if (
         /[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}-[0-9]{2}:[0-9]{2}/.test(
-          schedule
+          schedule,
         )
       ) {
         let scheduleDate = new Date(Date.parse(schedule));
@@ -161,7 +163,7 @@ export class ScheduleServiceNS implements ScheduleService {
     entityType: string,
     entityId: string,
     handlerMethod: string,
-    options: any
+    options: any,
   ): void {
     let cronExpression = this.dateToCron(date);
     this.scheduleEvery(
@@ -169,7 +171,7 @@ export class ScheduleServiceNS implements ScheduleService {
       entityType,
       entityId,
       handlerMethod,
-      options
+      options,
     );
   }
 
@@ -182,7 +184,7 @@ export class ScheduleServiceNS implements ScheduleService {
     }
     let runInFunction = function (
       entityService: EntityService,
-      scheduleService: ScheduleServiceNS
+      scheduleService: ScheduleServiceNS,
     ) {
       try {
         if (jobSchedule.entityType === "SMARTAPP") {
@@ -190,7 +192,7 @@ export class ScheduleServiceNS implements ScheduleService {
             .runSmartAppMethod(
               jobSchedule.entityId,
               jobSchedule.handlerMethod,
-              jobSchedule.data
+              jobSchedule.data,
             )
             .catch((err) => {
               //TODO: log this to the live log
@@ -200,7 +202,7 @@ export class ScheduleServiceNS implements ScheduleService {
           entityService.runDeviceMethod(
             jobSchedule.entityId,
             jobSchedule.handlerMethod,
-            jobSchedule.data
+            jobSchedule.data,
           );
         }
 
@@ -229,7 +231,7 @@ export class ScheduleServiceNS implements ScheduleService {
     prefix: string,
     entityType: string,
     entityId: string,
-    handlerMethod: string
+    handlerMethod: string,
   ) {
     let jobKey =
       (prefix || "") +
@@ -257,7 +259,7 @@ export class ScheduleServiceNS implements ScheduleService {
         jobScheduleYaml,
         (err: any) => {
           if (err) throw err;
-        }
+        },
       );
     }
   }
@@ -272,14 +274,14 @@ export class ScheduleServiceNS implements ScheduleService {
 
     try {
       const schDirFiles: string[] = fs.readdirSync(
-        "userData/config/schedules/"
+        "userData/config/schedules/",
       );
       schDirFiles.forEach((schDirFile) => {
         try {
           if (schDirFile.endsWith(".yaml")) {
             const data = fs.readFileSync(
               `userData/config/schedules/${schDirFile}`,
-              "utf-8"
+              "utf-8",
             );
             let parsedFile = YAML.parse(data);
             let jobSchedule: ScheduleType = {
@@ -300,7 +302,7 @@ export class ScheduleServiceNS implements ScheduleService {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/config/schedules/: ${err.message}`
+        `Error loading files from userData/config/schedules/: ${err.message}`,
       );
     }
   }
