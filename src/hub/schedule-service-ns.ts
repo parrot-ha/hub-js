@@ -206,8 +206,10 @@ export class ScheduleServiceNS implements ScheduleService {
           );
         }
 
-        // delete job
-        scheduleService.deleteJob(jobSchedule.jobKey);
+        // delete job if run once
+        if (jobSchedule.jobType === "runOnce") {
+          scheduleService.deleteJob(jobSchedule.jobKey);
+        }
       } catch (err) {
         logger.warn("error with scheduled runIn", err);
       }
