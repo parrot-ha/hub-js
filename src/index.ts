@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import { ServiceFactory } from "./hub/service-factory";
 import { setupSystem, shutdownSystem } from "./hub/hub-setup";
 import WebSocket from "ws";
+
 const logger = require("./hub/logger-service")({ source: "main" });
 // alternate import for logger (combined with export update in file)
 //import loggerInit from "./hub/logger-service";
@@ -15,7 +16,30 @@ const app: Application = express();
 app.use(express.json()); // for parsing application/json
 
 const path = __dirname + "/ui/";
-app.use(express.static(path));
+// TODO: can this be pulled from vue js router/index.js?
+const vueRoutes = [
+  "/",
+  "/devices",
+  "/device-add",
+  "/devices/*",
+  "/devicetiles/*",
+  "/isas",
+  "/isas/*",
+  "/isa-add",
+  "/integrations",
+  "/integrations/*",
+  "/integration-add",
+  "/location",
+  "/hub",
+  "/settings",
+  "/settings/*",
+  "/sa-code",
+  "/sa-code/*",
+  "/dh-code",
+  "/dh-code/*",
+  "/extensions",
+];
+vueRoutes.map((route) => app.use(route, express.static(path)));
 
 // include routes/controllers
 require("./routes")(
