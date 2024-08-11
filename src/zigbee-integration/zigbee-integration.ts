@@ -27,6 +27,7 @@ import { isEmpty, isNotBlank } from "../utils/string-utils";
 import {
   DeviceAddedEvent,
   DeviceMessageEvent,
+  DeviceUpdatedEvent,
 } from "../integration/integration-events";
 import { sendZigbeeMessage } from "./zigbee-message-transformer";
 import fs from "fs";
@@ -44,12 +45,12 @@ export default class ZigbeeIntegration
 
   public removeIntegrationDeviceAsync(
     deviceNetworkId: string,
-    force: boolean
+    force: boolean,
   ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       try {
         let zbDevice: ZigbeeDevice = this._controller.getDeviceByNetworkAddress(
-          hexStringToInt(deviceNetworkId)
+          hexStringToInt(deviceNetworkId),
         );
         if (zbDevice == null) {
           logger.info("zigbee device not found to delete: " + deviceNetworkId);
@@ -112,7 +113,7 @@ export default class ZigbeeIntegration
           "panID",
           numberToHexString(panID, 2),
           "number",
-          false
+          false,
         );
         initialSetup = true;
       }
@@ -120,8 +121,8 @@ export default class ZigbeeIntegration
         // generate random extended pan id
         extendedPanIDStr = numberArrayToHexString(
           Array.from(Array(8)).map(() =>
-            parseInt(randomBytes(1).toString("hex"), 16)
-          )
+            parseInt(randomBytes(1).toString("hex"), 16),
+          ),
         );
         this.updateSetting("extendedPanID", extendedPanIDStr, "string", false);
 
@@ -131,8 +132,8 @@ export default class ZigbeeIntegration
         // generate random network key str
         networkKeyStr = numberArrayToHexString(
           Array.from(Array(16)).map(() =>
-            parseInt(randomBytes(1).toString("hex"), 16)
-          )
+            parseInt(randomBytes(1).toString("hex"), 16),
+          ),
         );
         this.updateSetting("networkKey", networkKeyStr, "string", false);
         initialSetup = true;
@@ -173,19 +174,19 @@ export default class ZigbeeIntegration
           "deviceJoined",
           async (msg: DeviceJoinedPayload) => {
             this.deviceJoined(msg);
-          }
+          },
         );
         this._controller.on(
           "deviceInterview",
           async (msg: DeviceInterviewPayload) => {
             this.deviceInterview(msg);
-          }
+          },
         );
         this._controller.on(
           "deviceAnnounce",
           async (msg: DeviceAnnouncePayload) => {
             this.deviceAnnounce(msg);
-          }
+          },
         );
         this._controller.on("deviceLeave", async (msg: DeviceLeavePayload) => {
           this.deviceLeave(msg);
@@ -194,13 +195,13 @@ export default class ZigbeeIntegration
           "deviceNetworkAddressChanged",
           async (msg: DeviceNetworkAddressChangedPayload) => {
             this.deviceNetworkAddressChanged(msg);
-          }
+          },
         );
         this._controller.on(
           "permitJoinChanged",
           async (msg: PermitJoinChangedPayload) => {
             this.permitJoinChanged(msg);
-          }
+          },
         );
 
         this._controller
@@ -228,7 +229,7 @@ export default class ZigbeeIntegration
                     "zigbeeChannel",
                     networkParameters.channel,
                     "number",
-                    false
+                    false,
                   );
                 }
               });
@@ -290,7 +291,7 @@ export default class ZigbeeIntegration
         let deviceMap = new Map<string, any>();
         deviceMap.set(
           "networkAddress",
-          numberToHexString(msg.device.networkAddress, 2)
+          numberToHexString(msg.device.networkAddress, 2),
         );
         deviceMap.set("initializing", false);
         this.joinedDevices.set(msg.device.ieeeAddr, deviceMap);
@@ -304,6 +305,23 @@ export default class ZigbeeIntegration
     console.log("deviceAnnounce", msg);
     if (msg.device) {
       // new device announced
+      // send event, service should handle updated device
+      if (msg.device.interviewCompleted) {
+        let additionalParams: Map<string, string> = new Map<string, string>();
+
+        additionalParams.set("zigbeeId", msg.device.ieeeAddr);
+
+        // TODO: send rest of information (same as device added event) in case the
+        // system does not have this device and it will have to process this as a 
+        // device add
+        this.sendEvent(
+          new DeviceUpdatedEvent(
+            numberToHexString(msg.device.networkAddress, 2),
+            "deviceNetworkId",
+            additionalParams,
+          ),
+        );
+      }
     }
   }
   private deviceLeave(msg: DeviceLeavePayload) {
@@ -371,7 +389,7 @@ export default class ZigbeeIntegration
 
       fingerprint.set(
         "profileId",
-        numberToHexString(zigBeeEndpoint.profileID, 2)
+        numberToHexString(zigBeeEndpoint.profileID, 2),
       );
 
       let manufacturer = zigbeeDevice.manufacturerName;
@@ -388,7 +406,7 @@ export default class ZigbeeIntegration
 
       additionalParams.set(
         "endpointId",
-        numberToHexString(zigBeeEndpoint.ID, 1)
+        numberToHexString(zigBeeEndpoint.ID, 1),
       );
       additionalParams.set("zigbeeId", zigbeeDevice.ieeeAddr);
       let deviceData: Map<string, any> = new Map<string, any>();
@@ -408,8 +426,8 @@ export default class ZigbeeIntegration
           userInitiatedAdd,
           fingerprint,
           deviceData,
-          additionalParams
-        )
+          additionalParams,
+        ),
       );
 
       return;
@@ -429,14 +447,14 @@ export default class ZigbeeIntegration
         ["zstack", "ezsp"],
         false,
         true,
-        true
+        true,
       )
       .withTextInput(
         "serialPortName",
         "Serial Port Name",
         "Serial Port Name",
         true,
-        true
+        true,
       )
       .withEnumInput(
         "serialPortBaud",
@@ -445,7 +463,7 @@ export default class ZigbeeIntegration
         ["57600", "115200"],
         false,
         true,
-        true
+        true,
       )
       .withEnumInput(
         "serialPortFlowControl",
@@ -454,7 +472,7 @@ export default class ZigbeeIntegration
         ["Software (XOn / XOff)", "Hardware (RTS / CTS)"],
         false,
         true,
-        true
+        true,
       )
       .withEnumInput(
         "userZigbeeChannel",
@@ -481,7 +499,7 @@ export default class ZigbeeIntegration
         ],
         false,
         false,
-        true
+        true,
       )
       .build();
   }
@@ -519,13 +537,13 @@ export default class ZigbeeIntegration
           "zigbeeChannel",
           this.getSettingAsInteger("userZigbeeChannel"),
           "number",
-          false
+          false,
         );
         this.updateSetting(
           "userZigbeeChannel",
           "Use Existing Value",
           "string",
-          false
+          false,
         );
       }
 
@@ -594,7 +612,7 @@ export default class ZigbeeIntegration
       let joinedDevicesList: any[] = [];
       logger.debug(
         "joinedDevices: " +
-          JSON.stringify(Object.fromEntries(this.joinedDevices))
+          JSON.stringify(Object.fromEntries(this.joinedDevices)),
       );
       for (let key of this.joinedDevices.keys()) {
         let entryValue = this.joinedDevices.get(key);

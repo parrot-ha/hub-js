@@ -20,7 +20,7 @@ export class IntegrationHubEvent extends IntegrationEvent {
     name: string,
     value: string,
     description: string,
-    stateChange: boolean
+    stateChange: boolean,
   ) {
     super();
     this._name = name;
@@ -60,7 +60,7 @@ export class DeviceAddedEvent extends DeviceEvent {
     userInitiatedAdd: boolean,
     fingerprint: Map<string, string>,
     data: Map<string, any>,
-    parameters: Map<string, string>
+    parameters: Map<string, string>,
   ) {
     super(
       deviceNetworkId,
@@ -68,7 +68,7 @@ export class DeviceAddedEvent extends DeviceEvent {
         ["fingerprint", fingerprint],
         ["data", data],
         ["parameters", parameters],
-      ])
+      ]),
     );
     this._userInitiatedAdd = userInitiatedAdd;
   }
@@ -90,6 +90,24 @@ export class DeviceAddedEvent extends DeviceEvent {
   }
 }
 
+export class DeviceUpdatedEvent extends DeviceEvent {
+  //TODO: make this an enum?
+  private _updatedField: string;
+
+  constructor(deviceNetworkId: string, updatedField: string, parameters: Map<string, string>) {
+    super(deviceNetworkId, new Map<string, any>([["parameters", parameters]]));
+    this._updatedField = updatedField;
+  }
+
+  public get updatedField(): string {
+    return this._updatedField;
+  }
+
+  public get additionalParameters(): Map<string, string> {
+    return (this.event as Map<string, any>).get("parameters");
+  }
+}
+
 export class DeviceMessageEvent extends DeviceEvent {
   constructor(deviceNetworkId: string, message: string) {
     super(deviceNetworkId, { message: message });
@@ -107,7 +125,7 @@ export class LanDeviceMessageEvent extends DeviceMessageEvent {
     macAddress: string,
     remoteAddress: string,
     remotePort: number,
-    message: string
+    message: string,
   ) {
     super(macAddress, message);
     this._remoteAddress = remoteAddress;
