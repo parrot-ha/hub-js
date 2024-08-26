@@ -6,6 +6,7 @@ import {
   DeviceAddedEvent,
   DeviceEvent,
   DeviceMessageEvent,
+  DeviceUpdatedEvent,
   LanDeviceMessageEvent,
 } from "./integration-events";
 import { IntegrationSetting } from "./models/integration-setting";
@@ -36,7 +37,7 @@ export class IntegrationService {
     integrationDataStore: IntegrationDataStore,
     integrationRegistry: IntegrationRegistry,
     entityService: EntityService,
-    deviceService: DeviceService
+    deviceService: DeviceService,
   ) {
     this._integrationDataStore = integrationDataStore;
     this._integrationRegistry = integrationRegistry;
@@ -83,7 +84,7 @@ export class IntegrationService {
           } catch (err) {
             logger.warn(
               `Exception while starting integration ${integrationId}`,
-              err
+              err,
             );
           }
         }
@@ -114,7 +115,7 @@ export class IntegrationService {
             event.integrationId,
             event.deviceNetworkId,
             "parse",
-            [event.message]
+            [event.message],
           );
         }
       } else if (event instanceof DeviceAddedEvent) {
@@ -132,7 +133,7 @@ export class IntegrationService {
             d.integration.id = event.integrationId;
             if (event.additionalParameters instanceof Map) {
               d.integration.options = Object.fromEntries(
-                event.additionalParameters
+                event.additionalParameters,
               );
             } else {
               d.integration.options = event.additionalParameters;
@@ -149,7 +150,7 @@ export class IntegrationService {
             let deviceId = this._deviceService.addDevice(d);
 
             let capabilityList: string[] = this._deviceService.getDeviceHandler(
-              this._deviceService.getDevice(deviceId).deviceHandlerId
+              this._deviceService.getDevice(deviceId).deviceHandlerId,
             ).capabilityList;
             if (
               capabilityList != null &&
@@ -160,20 +161,60 @@ export class IntegrationService {
             this._entityService.runDeviceMethod(deviceId, "installed", null);
           }
         }
+      } else if (event instanceof DeviceUpdatedEvent) {
+        if (event.updatedField == "deviceNetworkId") {
+          //TODO: add function to service to get correct device (getDeviceByIntegrationAnd...)
+          let devices = this._deviceService
+            .getDevices()
+            .filter(
+              (device) =>
+                device.integration.id === event.integrationId &&
+                this.additionalParamsMatch(device, event.additionalParameters),
+            );
+          // if more than one device matches, we have a problem because DNIs are supposed to be unique
+          if (devices.length > 0) {
+            if (devices.length > 1) {
+              logger.warn("More than one device matched for integration / params. Updating first match, ignoring the rest!")
+            }
+            let device = devices[0];
+            this._deviceService.updateDevice(
+              device.id,
+              { deviceNetworkId: event.deviceNetworkId },
+              {},
+            );
+          }
+        }
       }
     } else {
       logger.debug("unknown event type");
     }
   }
 
+  private additionalParamsMatch(
+    device: Device,
+    additionalParams: Map<string, any>,
+  ): boolean {
+    if (device.integration == null || device.integration.options == null)
+      return false;
+
+    let matches = true;
+    additionalParams.forEach((_value: any, key: string) => {
+      if (device.integration.options[key] != _value) {
+        matches = false;
+      }
+    });
+
+    return matches;
+  }
+
   public isResetIntegrationExtension(
-    obj: any
+    obj: any,
   ): obj is ResetIntegrationExtension {
     return "reset" in obj && "getResetWarning" in obj;
   }
 
   public isDeviceScanIntegrationExtension(
-    obj: any
+    obj: any,
   ): obj is DeviceScanIntegrationExtension {
     return "startScan" in obj && "stopScan" in obj && "getScanStatus" in obj;
   }
@@ -187,7 +228,7 @@ export class IntegrationService {
         event.integrationId,
         event.macAddress,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -204,14 +245,14 @@ export class IntegrationService {
     if (
       this._deviceService.deviceExists(
         event.integrationId,
-        ipAddressAndPortHexString
+        ipAddressAndPortHexString,
       )
     ) {
       this._entityService.runDeviceMethodByDNI(
         event.integrationId,
         ipAddressAndPortHexString,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -224,7 +265,7 @@ export class IntegrationService {
         event.integrationId,
         ipAddressHexString,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -237,7 +278,7 @@ export class IntegrationService {
         null,
         event.macAddress,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -248,7 +289,7 @@ export class IntegrationService {
         null,
         ipAddressAndPortHexString,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -259,7 +300,7 @@ export class IntegrationService {
         null,
         ipAddressHexString,
         "parse",
-        [event.message]
+        [event.message],
       );
       return;
     }
@@ -342,21 +383,21 @@ export class IntegrationService {
     if (integrationConfigurations != null) {
       for (let integrationConfiguration of integrationConfigurations) {
         let abstractIntegration = this.getAbstractIntegrationFromConfiguration(
-          integrationConfiguration
+          integrationConfiguration,
         );
         if (abstractIntegration != null) {
           temporaryIntegrationMap.set(
             integrationConfiguration.id,
-            abstractIntegration
+            abstractIntegration,
           );
           let integrationIdArray = temporaryProtocolListMap.get(
-            integrationConfiguration.protocol
+            integrationConfiguration.protocol,
           );
           if (!integrationIdArray) integrationIdArray = [];
           integrationIdArray.push(integrationConfiguration.id);
           temporaryProtocolListMap.set(
             integrationConfiguration.protocol,
-            integrationIdArray
+            integrationIdArray,
           );
         }
       }
@@ -370,7 +411,7 @@ export class IntegrationService {
   }
 
   private getAbstractIntegrationByTypeId(
-    integrationTypeId: string
+    integrationTypeId: string,
   ): AbstractIntegration {
     let abstractIntegrationType =
       this.getIntegrationTypeMap()?.get(integrationTypeId);
@@ -385,20 +426,20 @@ export class IntegrationService {
   }
 
   private getAbstractIntegrationFromConfiguration(
-    integrationConfiguration: IntegrationConfiguration
+    integrationConfiguration: IntegrationConfiguration,
   ): AbstractIntegration {
     let abstractIntegration: AbstractIntegration = null;
     if (isNotBlank(integrationConfiguration.integrationTypeId)) {
       abstractIntegration = this.getAbstractIntegrationByTypeId(
-        integrationConfiguration.integrationTypeId
+        integrationConfiguration.integrationTypeId,
       );
     } else {
       let integrationInfo = Array.from(
-        this.getIntegrationTypeMap().values()
+        this.getIntegrationTypeMap().values(),
       ).find((m) => integrationConfiguration.importName == m.importName);
       if (integrationInfo?.id) {
         abstractIntegration = this.getAbstractIntegrationByTypeId(
-          integrationInfo.id
+          integrationInfo.id,
         );
       }
     }
@@ -419,13 +460,13 @@ export class IntegrationService {
       integrationId = this.addIntegrationConfiguration(
         (integration as DeviceIntegration).getProtocol(),
         integrationTypeId,
-        integration.getDefaultSettings()
+        integration.getDefaultSettings(),
       );
     } else {
       integrationId = this.addIntegrationConfiguration(
         null,
         integrationTypeId,
-        integration.getDefaultSettings()
+        integration.getDefaultSettings(),
       );
     }
 
@@ -439,7 +480,7 @@ export class IntegrationService {
     }
     this.getIntegrationMap().set(
       integrationConfiguration.id,
-      abstractIntegration
+      abstractIntegration,
     );
 
     abstractIntegration.id = integrationId;
@@ -458,7 +499,7 @@ export class IntegrationService {
   public removeIntegration(id: string): Promise<boolean> {
     let removeConfig = function (
       resolve: any,
-      integration: AbstractIntegration
+      integration: AbstractIntegration,
     ) {
       let integrationConfigurationRemoved =
         this._integrationDataStore.removeIntegrationConfiguration(id);
@@ -497,7 +538,7 @@ export class IntegrationService {
   }
 
   private initializeIntegration(
-    abstractIntegration: AbstractIntegration
+    abstractIntegration: AbstractIntegration,
   ): void {
     abstractIntegration.on("event", this.eventReceived.bind(this));
   }
@@ -512,11 +553,11 @@ export class IntegrationService {
 
   public getIntegrationConfigurationValue(
     integrationId: string,
-    configurationId: string
+    configurationId: string,
   ): string {
     return this._integrationDataStore.getIntegrationSettingValue(
       integrationId,
-      configurationId
+      configurationId,
     );
   }
 
@@ -525,14 +566,14 @@ export class IntegrationService {
     configurationKey: string,
     configurationValue: any,
     type: string,
-    multiple: boolean
+    multiple: boolean,
   ): void {
     return this._integrationDataStore.updateIntegrationSettingValue(
       integrationId,
       configurationKey,
       configurationValue,
       type,
-      multiple
+      multiple,
     );
   }
 
@@ -562,7 +603,7 @@ export class IntegrationService {
             existingSetting.processValueTypeAndMultiple(
               setting["value"],
               setting["type"],
-              setting["multiple"]
+              setting["multiple"],
             );
 
             // add to list of changed fields
@@ -576,7 +617,7 @@ export class IntegrationService {
           existingSetting.processValueTypeAndMultiple(
             setting["value"],
             setting["type"],
-            setting["multiple"]
+            setting["multiple"],
           );
           integrationConfiguration.addSetting(existingSetting);
 
@@ -586,7 +627,7 @@ export class IntegrationService {
       }
     }
     this._integrationDataStore.updateIntegrationConfiguration(
-      integrationConfiguration
+      integrationConfiguration,
     );
 
     // send list of changed keys to the integration
@@ -598,12 +639,12 @@ export class IntegrationService {
   public addIntegrationConfiguration(
     protocol: Protocol,
     integrationTypeId: string,
-    settings: IntegrationSetting[]
+    settings: IntegrationSetting[],
   ): string {
     return this._integrationDataStore.addIntegrationConfiguration(
       protocol,
       integrationTypeId,
-      settings
+      settings,
     );
   }
 
@@ -612,14 +653,14 @@ export class IntegrationService {
   }
 
   public getIntegrationConfigurations(
-    includeName: boolean = true
+    includeName: boolean = true,
   ): IntegrationConfiguration[] {
     let integrationConfigs = this._integrationDataStore.getIntegrations();
 
     if (includeName) {
       integrationConfigs?.forEach((integrationConfig) => {
         let abstractIntegration: AbstractIntegration = this.getIntegrationById(
-          integrationConfig.id
+          integrationConfig.id,
         );
         if (abstractIntegration != null) {
           integrationConfig.name = abstractIntegration.name;
