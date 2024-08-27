@@ -8,6 +8,7 @@ import { ScheduleService } from "../hub/schedule-service";
 export abstract class EntityDelegate {
   private _commonSandboxMethods: string[] = [
     "httpGet",
+    "httpPost",
     "runIn",
     "schedule",
     "unschedule",
@@ -75,6 +76,22 @@ export abstract class EntityDelegate {
     } else if (typeof param === "object") {
       //TODO: figure out if secure
       this.httpRequest("GET", false, null, param, callback);
+    }
+  }
+
+  //TODO: add handling of (string, string, callback) function
+  httpPost(param1: any, param2: any, param3: Function): void {
+    if(typeof param1 === "string" && typeof param2 === "string") {
+      //TODO: implement body
+      this.httpRequest("POST", false, param1, {}, param3)
+    } else if (typeof param1 === "object" && typeof param2 === "function" && param3 == null) {
+      if(param1.uri?.startsWith("http://")) {
+        this.httpRequest("POST", false, param1.uri, param1, param2);
+      } else if (param1.uri?.startsWith("https://")) {
+        this.httpRequest("POST", true, param1.uri, param1, param2);
+      } else {
+        this.httpRequest("POST", false, null, param1, param2)
+      }
     }
   }
 
