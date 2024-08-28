@@ -62,8 +62,9 @@ jest.mock("zigbee-herdsman", () => {
         }),
         start: jest.fn(() => new Promise((resolve) => resolve(true))),
         getNetworkParameters: jest.fn(
-          () => new Promise((resolve) => resolve({}))
+          () => new Promise((resolve) => resolve({panID: 58}))
         ),
+        backup: jest.fn(),
         adapter: {
           on: jest.fn((name, mthd) => {
             console.log("called adapter on with name", name, mthd);

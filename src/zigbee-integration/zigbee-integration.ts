@@ -37,6 +37,8 @@ const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
 });
 
+const backup = "userData/zigbee/network.bak";
+
 export default class ZigbeeIntegration
   extends DeviceIntegration
   implements ResetIntegrationExtension, DeviceScanIntegrationExtension
@@ -96,18 +98,20 @@ export default class ZigbeeIntegration
     //TODO: lookup from settings
     let serialPortName = this.getSettingAsString("serialPortName");
     let adapterType = this.getSettingAsString("adapterType", "zstack");
-    let panID = this.getSettingAsInteger("panID");
+    let panIDStr = this.getSettingAsString("panID");
     let extendedPanIDStr: string = this.getSettingAsString("extendedPanID");
     let networkKeyStr: string = this.getSettingAsString("networkKey");
     let zigbeeChannel = this.getSettingAsString("userZigbeeChannel");
-    let zigbeeChannelList: number[] = [
-      11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
-    ];
+    // zigbee herdsman always grabs the first entry in the list.
+    //TODO: figure out how to discover a clear channel.
+    let zigbeeChannelList: number[] = [20];
 
     const DB = "userData/zigbee/devices.db";
+    const dbBackup = "userData/zigbee/devices.bak";
 
     if (serialPortName && adapterType) {
-      if (!panID) {
+      let panID;
+      if (!panIDStr) {
         panID = parseInt(randomBytes(2).toString("hex"), 16);
         this.updateSetting(
           "panID",
@@ -116,6 +120,8 @@ export default class ZigbeeIntegration
           false,
         );
         initialSetup = true;
+      } else {
+        panID = hexStringToInt(panIDStr);
       }
       if (!extendedPanIDStr) {
         // generate random extended pan id
@@ -164,6 +170,8 @@ export default class ZigbeeIntegration
           },
           serialPort: { path: serialPortName, adapter: adapterType },
           databasePath: DB,
+          backupPath: backup,
+          databaseBackupPath: dbBackup,
         });
 
         this._controller.on("message", async (msg: MessagePayload) => {
@@ -216,11 +224,13 @@ export default class ZigbeeIntegration
             this._controller
               .getNetworkParameters()
               .then((networkParameters: any) => {
-                //TODO: save the settings
                 this._displayInformation["Channel"] = networkParameters.channel;
                 this._displayInformation["Extended Pan ID"] =
                   networkParameters.extendedPanID;
-                this._displayInformation["Pan ID"] = networkParameters.panID;
+                this._displayInformation["Pan ID"] = numberToHexString(
+                  networkParameters.panID,
+                  2,
+                );
                 //model.put("Node ID", HexUtils.integerToHexString(zigBeeHandler.getNetworkManager().getLocalNwkAddress(), 2));
                 this._displayInformation["Status"] = "Online";
                 if (initialSetup) {
@@ -231,6 +241,7 @@ export default class ZigbeeIntegration
                     "number",
                     false,
                   );
+                  this._controller.backup();
                 }
               });
           })
@@ -312,7 +323,7 @@ export default class ZigbeeIntegration
         additionalParams.set("zigbeeId", msg.device.ieeeAddr);
 
         // TODO: send rest of information (same as device added event) in case the
-        // system does not have this device and it will have to process this as a 
+        // system does not have this device and it will have to process this as a
         // device add
         this.sendEvent(
           new DeviceUpdatedEvent(
@@ -546,6 +557,7 @@ export default class ZigbeeIntegration
           false,
         );
       }
+      //this._controller.
 
       //TODO: change the channel of the zigbee radio
       // Object channelObj = getSettingAsString("zigbeeChannel");
@@ -565,6 +577,15 @@ export default class ZigbeeIntegration
           .reset("hard")
           .then(() => {
             logger.info("coordinator reset");
+            // clear settings
+            this.updateSetting("extendedPanID", null, "string", false);
+            this.updateSetting("panID", null, "string", false);
+            this.updateSetting("networkKey", null, "string", false);
+            this.updateSetting("zigbeeChannel", null, "number", false);
+            // restart the integration
+            this.stop();
+            fs.rmSync(backup);
+            this.start();
             resolve(true);
           })
           .catch((err: Error) => {
