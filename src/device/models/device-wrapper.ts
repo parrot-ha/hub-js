@@ -34,7 +34,7 @@ export class DeviceWrapper implements EntityWrapper {
     return this._device.deviceNetworkId;
   }
 
-  set setDeviceNetworkId(deviceNetworkId: string) {
+  set deviceNetworkId(deviceNetworkId: string) {
     if (this._deviceService == null) {
       throw new Error("DeviceNetworkId is currently not updatable");
     }
