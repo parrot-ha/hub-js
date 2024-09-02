@@ -81,16 +81,20 @@ export abstract class EntityDelegate {
 
   //TODO: add handling of (string, string, callback) function
   httpPost(param1: any, param2: any, param3: Function): void {
-    if(typeof param1 === "string" && typeof param2 === "string") {
+    if (typeof param1 === "string" && typeof param2 === "string") {
       //TODO: implement body
-      this.httpRequest("POST", false, param1, {}, param3)
-    } else if (typeof param1 === "object" && typeof param2 === "function" && param3 == null) {
-      if(param1.uri?.startsWith("http://")) {
+      this.httpRequest("POST", false, param1, {}, param3);
+    } else if (
+      typeof param1 === "object" &&
+      typeof param2 === "function" &&
+      param3 == null
+    ) {
+      if (param1.uri?.startsWith("http://")) {
         this.httpRequest("POST", false, param1.uri, param1, param2);
       } else if (param1.uri?.startsWith("https://")) {
         this.httpRequest("POST", true, param1.uri, param1, param2);
       } else {
-        this.httpRequest("POST", false, null, param1, param2)
+        this.httpRequest("POST", false, null, param1, param2);
       }
     }
   }
@@ -100,7 +104,7 @@ export abstract class EntityDelegate {
     secure: boolean,
     url: string,
     options: any,
-    callback: Function
+    callback: Function,
   ) {
     function httpCallback(res: IncomingMessage) {
       const { statusCode } = res;
@@ -124,10 +128,24 @@ export abstract class EntityDelegate {
           }
         } catch (e) {
           console.error(e.message);
-          callback(e, null);
+          try {
+            callback(e, null);
+          } catch (err) {
+            console.log(
+              "Uncaught exception from httpRequest callback",
+              err.message,
+            );
+          }
           return;
         }
-        callback(null, responseDecorator);
+        try {
+          callback(null, responseDecorator);
+        } catch (err) {
+          console.log(
+            "Uncaught exception from httpRequest callback",
+            err.message,
+          );
+        }
       });
     }
 
@@ -165,28 +183,28 @@ export abstract class EntityDelegate {
   public runIn(
     delayInSeconds: number,
     handlerMethod: string | Function,
-    options: any = {}
+    options: any = {},
   ): void {
     this._scheduleService.runIn(
       delayInSeconds,
       this.entityType,
       this.entityId,
       typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
-      options
+      options,
     );
   }
 
   public schedule(
     schedule: string | Date,
     handlerMethod: string | Function,
-    options: any = {}
+    options: any = {},
   ): void {
     this._scheduleService.scheduleEvery(
       schedule,
       this.entityType,
       this.entityId,
       typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
-      options
+      options,
     );
   }
 
@@ -194,7 +212,7 @@ export abstract class EntityDelegate {
     this._scheduleService.unschedule(
       this.entityType,
       this.entityId,
-      typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod
+      typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
     );
   }
 

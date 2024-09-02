@@ -5,6 +5,7 @@ import YAML from "yaml";
 import fs from "fs";
 import * as crypto from "crypto";
 import { isBlank, deleteWhitespace, isNotEmpty } from "../utils/string-utils";
+import { saveFile, deleteFile, parseYamlFile } from "../utils/file-utils";
 const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
@@ -28,7 +29,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
     capability = capability.toLowerCase();
     this.getDevices()?.forEach((device) => {
       let deviceHandler: DeviceHandler = this.getDeviceHandler(
-        device.deviceHandlerId
+        device.deviceHandlerId,
       );
       if (deviceHandler != null) {
         let capabilityList: string[] = deviceHandler.capabilityList;
@@ -53,14 +54,14 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
   getDeviceByIntegrationAndDNI(
     integrationId: string,
-    deviceNetworkId: string
+    deviceNetworkId: string,
   ): Device {
     let device: Device = this.getDeviceCache().get(
       this.getDeviceDNItoIDMap().get(
         (integrationId != null ? integrationId : "null") +
           ":" +
-          deviceNetworkId.toUpperCase()
-      )
+          deviceNetworkId.toUpperCase(),
+      ),
     );
     return device;
   }
@@ -70,7 +71,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
       return [];
     } else {
       return this.getDevices().filter(
-        (device) => device.deviceHandlerId === deviceHandlerId
+        (device) => device.deviceHandlerId === deviceHandlerId,
       );
     }
   }
@@ -83,7 +84,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
         this.getDeviceDNItoIDMap().delete(existingDevice.deviceNetworkId);
         this.getDeviceDNItoIDMap().set(
           device.deviceNetworkId,
-          existingDevice.id
+          existingDevice.id,
         );
         existingDevice.deviceNetworkId = device.deviceNetworkId;
       }
@@ -141,9 +142,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
     let device: Device = this.getDevice(id);
     try {
       let fileName: string = `userData/config/devices/${id}.yaml`;
-      if (fs.existsSync(fileName)) {
-        fs.unlinkSync(fileName);
-      }
+      deleteFile(fileName);
     } catch (err) {
       logger.warn("Unable to delete device " + id);
       return false;
@@ -151,7 +150,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
     try {
       if (device) {
         this.getDeviceDNItoIDMap().delete(
-          (device.integration?.id || "null") + ":" + device.deviceNetworkId
+          (device.integration?.id || "null") + ":" + device.deviceNetworkId,
         );
       }
       this.getDeviceCache().delete(id);
@@ -196,19 +195,19 @@ export class DeviceFileDataStore implements DeviceDataStore {
     this.getDeviceCache().set(device.id, device);
     this.getDeviceDNItoIDMap().set(
       (device.integration?.id || "null") + ":" + device.deviceNetworkId,
-      device.id
+      device.id,
     );
     if (isNotEmpty(device.parentDeviceId)) {
       this.addChildDevice(
         this.getChildDeviceMap(),
         device.parentDeviceId,
-        device.id
+        device.id,
       );
     } else if (isNotEmpty(device.parentInstalledSmartAppId)) {
       this.addChildDevice(
         this.getAppChildDeviceMap(),
         device.parentInstalledSmartAppId,
-        device.id
+        device.id,
       );
     }
   }
@@ -248,30 +247,27 @@ export class DeviceFileDataStore implements DeviceDataStore {
       devDirFiles.forEach((devDirFile) => {
         try {
           if (devDirFile.endsWith(".yaml")) {
-            const data = fs.readFileSync(
-              `userData/config/devices/${devDirFile}`,
-              "utf-8"
+            let device: Device = Device.fromJSON(
+              parseYamlFile(`userData/config/devices/${devDirFile}`),
             );
-            let parsedFile = YAML.parse(data);
-            let device: Device = Device.fromJSON(parsedFile);
             newDevices.set(device.id, device);
             newDeviceDNItoIdMap.set(
               (device.integration?.id || "null") +
                 ":" +
                 device.deviceNetworkId.toUpperCase(),
-              device.id
+              device.id,
             );
             if (isNotEmpty(device.parentDeviceId)) {
               this.addChildDevice(
                 newChildDeviceMap,
                 device.parentDeviceId,
-                device.id
+                device.id,
               );
             } else if (isNotEmpty(device.parentInstalledSmartAppId)) {
               this.addChildDevice(
                 newAppChildDeviceMap,
                 device.parentInstalledSmartAppId,
-                device.id
+                device.id,
               );
             }
           }
@@ -281,7 +277,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/config/devices/: ${err.message}`
+        `Error loading files from userData/config/devices/: ${err.message}`,
       );
     }
     this._devices = newDevices;
@@ -293,7 +289,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
   private addChildDevice(
     childDeviceMap: Map<string, Set<string>>,
     parentId: string,
-    childDeviceId: string
+    childDeviceId: string,
   ): void {
     if (childDeviceMap.has(parentId)) {
       childDeviceMap.get(parentId).add(childDeviceId);
@@ -305,13 +301,8 @@ export class DeviceFileDataStore implements DeviceDataStore {
   private saveDeviceToFile(device: Device) {
     let deviceYaml = YAML.stringify(device.toJSON());
     if (deviceYaml?.trim().length > 0) {
-      fs.writeFile(
-        `userData/config/devices/${device.id}.yaml`,
-        deviceYaml,
-        (err: any) => {
-          if (err) throw err;
-        }
-      );
+      let fileName = `userData/config/devices/${device.id}.yaml`;
+      saveFile(fileName, deviceYaml);
     }
   }
 
@@ -360,13 +351,13 @@ export class DeviceFileDataStore implements DeviceDataStore {
           try {
             deviceHandlerSourceList.set(
               fileName,
-              fs.readFileSync(fileName)?.toString()
+              fs.readFileSync(fileName)?.toString(),
             );
           } catch (err) {
             logger.warn(
               "error processing user device handler file",
               fileName,
-              err
+              err,
             );
           }
         }
@@ -415,7 +406,7 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
   createDeviceHandlerSourceCode(
     sourceCode: string,
-    deviceHandler: DeviceHandler
+    deviceHandler: DeviceHandler,
   ): string {
     let fileName: string = `userData/deviceHandlers/${deviceHandler.id}.js`;
     deviceHandler.file = fileName;
@@ -434,30 +425,26 @@ export class DeviceFileDataStore implements DeviceDataStore {
 
   public getDeviceHandlerByNamespaceAndName(
     namespace: string,
-    name: string
+    name: string,
   ): DeviceHandler {
     return this.getDeviceHandlers().find(
       (deviceHandler) =>
-        deviceHandler.namespace === namespace && deviceHandler.name === name
+        deviceHandler.namespace === namespace && deviceHandler.name === name,
     );
   }
 
   public getDeviceHandlerByName(name: string): DeviceHandler {
     return this.getDeviceHandlers().find(
-      (deviceHandler) => deviceHandler.name === name
+      (deviceHandler) => deviceHandler.name === name,
     );
   }
 
   private saveDeviceHandlers(): void {
     if (this.getDeviceHandlerCache()?.size > 0) {
       try {
-        fs.writeFile(
+        saveFile(
           "userData/config/deviceHandlers.yaml",
           YAML.stringify(this.getDeviceHandlerCache().values()),
-          (err: any) => {
-            if (err) throw err;
-            logger.debug("device handler config file has been saved!");
-          }
         );
       } catch (err) {
         logger.warn("error when saving device handler config file", err);
@@ -472,22 +459,16 @@ export class DeviceFileDataStore implements DeviceDataStore {
       DeviceHandler
     >();
     try {
-      const deviceHandlersConfigFile = fs.readFileSync(
-        "userData/config/deviceHandlers.yaml",
-        "utf-8"
-      );
-      if (deviceHandlersConfigFile) {
-        let parsedFile = YAML.parse(deviceHandlersConfigFile);
-        if (parsedFile && Array.isArray(parsedFile)) {
-          parsedFile.forEach((fileDH) => {
-            let deviceHandler: DeviceHandler =
-              DeviceHandler.buildFromObject(fileDH);
-            deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
-          });
-        }
+      let parsedFile = parseYamlFile("userData/config/deviceHandlers.yaml");
+      if (parsedFile && Array.isArray(parsedFile)) {
+        parsedFile.forEach((fileDH) => {
+          let deviceHandler: DeviceHandler =
+            DeviceHandler.buildFromObject(fileDH);
+          deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
+        });
       }
     } catch (err) {
-      logger.warn(err);
+      logger.warn("Error reading device handler config file", err);
     }
     return deviceHandlerInfo;
   }
