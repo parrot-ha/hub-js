@@ -385,19 +385,12 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     let smartAppInfo: Map<string, SmartApp> = new Map<string, SmartApp>();
     try {
       let parsedFile = parseYamlFile("userData/config/smartApps.yaml");
-      // const smartAppsConfigFile = fs.readFileSync(
-        // "userData/config/smartApps.yaml",
-        // "utf-8",
-      // );
-      // if (smartAppsConfigFile) {
-        // let parsedFile = YAML.parse(smartAppsConfigFile);
         if (parsedFile && Array.isArray(parsedFile)) {
           parsedFile.forEach((fileDH) => {
             let smartApp: SmartApp = SmartApp.buildFromObject(fileDH);
             smartAppInfo.set(smartApp.id, smartApp);
           });
         }
-      // }
     } catch (err) {
       logger.warn(err);
     }
