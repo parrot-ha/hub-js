@@ -54,7 +54,7 @@ export class SmartAppDelegate extends EntityDelegate {
     scheduleService: ScheduleService,
     includeDefinition: boolean = false,
     includePreferences: boolean = false,
-    includeMappings: boolean = false
+    includeMappings: boolean = false,
   ) {
     super(scheduleService);
     this._installedSmartApp = installedSmartApp;
@@ -89,7 +89,7 @@ export class SmartAppDelegate extends EntityDelegate {
     entityOrEntities: any,
     attributeNameAndValue: string,
     handlerMethod: any,
-    options: any
+    options: any,
   ): void {
     if (entityOrEntities == null || handlerMethod == null) {
       return;
@@ -114,7 +114,7 @@ export class SmartAppDelegate extends EntityDelegate {
               this._installedSmartApp.id,
               attributeNameAndValue,
               handlerMethodName,
-              options
+              options,
             );
           } else if ((entity as EntityWrapper).getType() === "DEVICE-LIST") {
             (entity as DeviceWrapperList).devices.forEach((device) => {
@@ -123,7 +123,7 @@ export class SmartAppDelegate extends EntityDelegate {
                 this._installedSmartApp.id,
                 attributeNameAndValue,
                 handlerMethodName,
-                options
+                options,
               );
             });
           }
@@ -136,7 +136,7 @@ export class SmartAppDelegate extends EntityDelegate {
           this._installedSmartApp.id,
           attributeNameAndValue,
           handlerMethodName,
-          options
+          options,
         );
       } else if (
         (entityOrEntities as EntityWrapper).getType() === "DEVICE-LIST"
@@ -147,7 +147,7 @@ export class SmartAppDelegate extends EntityDelegate {
             this._installedSmartApp.id,
             attributeNameAndValue,
             handlerMethodName,
-            options
+            options,
           );
         });
       }
@@ -156,7 +156,11 @@ export class SmartAppDelegate extends EntityDelegate {
   }
 
   unsubscribe(entity: any, attributeName: string, handlerMethod: string): void {
-    console.log("unsubscribe");
+    if (entity == null && attributeName == null && handlerMethod == null) {
+      this._eventService.deleteSubscriptionsForInstalledSmartApp(this.entityId);
+    } else {
+      throw new Error("Not yet implemented");
+    }
   }
 
   render(params: any): WebServiceResponse {
@@ -169,7 +173,7 @@ export class SmartAppDelegate extends EntityDelegate {
 
   createAccessToken(): string {
     let smartApp = this._smartAppService.getSmartApp(
-      this._installedSmartApp.smartAppId
+      this._installedSmartApp.smartAppId,
     );
     if (smartApp != null && smartApp.oAuthEnabled) {
       let accessToken: string = randomUUID();

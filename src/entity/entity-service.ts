@@ -43,7 +43,7 @@ export class EntityService extends EventEmitter {
     deviceService: DeviceService,
     smartAppService: SmartAppService,
     eventService: EventService,
-    locationService: LocationService
+    locationService: LocationService,
   ) {
     super();
     this._deviceService = deviceService;
@@ -104,23 +104,50 @@ export class EntityService extends EventEmitter {
     // notify any processes that are looking for events.
     this.emit("event", event);
 
+    let promises = [];
     subscriptions.forEach((subscription: Subscription) => {
       //TODO: create a worker pool for these
-      this.runSmartAppMethod(
-        subscription.subscribedAppId,
-        subscription.handlerMethod,
-        [event]
-      );
+      try {
+        this.runSmartAppMethod(
+          subscription.subscribedAppId,
+          subscription.handlerMethod,
+          [event],
+        )
+          .then(() => {})
+          .catch((err) => logger.warn("Error with runSmartAppMethod ", err));
+      } catch (err) {
+        logger.warn("Error running smart app method", err);
+      }
     });
+    if (promises.length > 0) {
+      console.log("handle promises");
+    }
   }
 
-  public eventsSince( source: string,  sourceId: string,  date: Date, maxEvents: number): ParrotEventWrapper[] {
+  public eventsSince(
+    source: string,
+    sourceId: string,
+    date: Date,
+    maxEvents: number,
+  ): ParrotEventWrapper[] {
     return this._eventService.eventsSince(source, sourceId, date, maxEvents);
   }
 
-  public eventsBetween( source: string,  sourceId: string, startDate: Date, endDate: Date,  maxEvents: number): ParrotEventWrapper[] {
-    return this._eventService.eventsBetween(source, sourceId, startDate, endDate, maxEvents);
-  };
+  public eventsBetween(
+    source: string,
+    sourceId: string,
+    startDate: Date,
+    endDate: Date,
+    maxEvents: number,
+  ): ParrotEventWrapper[] {
+    return this._eventService.eventsBetween(
+      source,
+      sourceId,
+      startDate,
+      endDate,
+      maxEvents,
+    );
+  }
 
   public getSchedule(type: string, id: string): any[] {
     return this.scheduleService.getSchedulesForEntity(type, id);
@@ -128,7 +155,7 @@ export class EntityService extends EventEmitter {
 
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
     return this._deviceService.getDeviceHandlerPreferencesLayout(
-      deviceHandlerId
+      deviceHandlerId,
     );
   }
 
@@ -143,7 +170,7 @@ export class EntityService extends EventEmitter {
 
   public updateDeviceHandlerSourceCode(
     id: string,
-    sourceCode: string
+    sourceCode: string,
   ): boolean {
     if (this._deviceService.updateDeviceHandlerSourceCode(id, sourceCode)) {
       //TODO: assuming we are caching the scripts, clear out the cache.  Commented out for now.
@@ -177,7 +204,7 @@ export class EntityService extends EventEmitter {
     path: string,
     body: string,
     params: any,
-    headers: any
+    headers: any,
   ): WebServiceResponse {
     let authenticated: boolean = false;
 
@@ -252,7 +279,7 @@ export class EntityService extends EventEmitter {
                     params: params,
                     request: new WebServiceRequest(httpMethod, headers, body),
                   },
-                  null
+                  null,
                 );
 
                 if (response instanceof WebServiceResponse) {
@@ -278,7 +305,7 @@ export class EntityService extends EventEmitter {
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
     let smartApp: SmartApp = this._smartAppService.getSmartApp(
-      installedSmartApp.smartAppId
+      installedSmartApp.smartAppId,
     );
     let retVal;
     let context = this.buildSmartAppSandbox(installedSmartApp, true);
@@ -311,10 +338,18 @@ export class EntityService extends EventEmitter {
     return bearerToken;
   }
 
+  public deleteInstalledSmartApp(id: string): boolean {
+    let status = this._smartAppService.deleteInstalledSmartApp(id);
+    if (status) {
+      this._eventService.deleteSubscriptionsForInstalledSmartApp(id);
+    }
+    return status;
+  }
+
   public async runSmartAppMethod(
     id: string,
     methodName: string,
-    args: any[]
+    args: any[],
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       try {
@@ -322,7 +357,7 @@ export class EntityService extends EventEmitter {
           id,
           methodName,
           null,
-          args
+          args,
         );
         resolve(retVal);
       } catch (error) {
@@ -335,12 +370,12 @@ export class EntityService extends EventEmitter {
     id: string,
     methodName: string,
     additionalContext: any,
-    args: any[]
+    args: any[],
   ): any {
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
     let smartApp: SmartApp = this._smartAppService.getSmartApp(
-      installedSmartApp.smartAppId
+      installedSmartApp.smartAppId,
     );
     let retVal;
     let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
@@ -372,7 +407,7 @@ export class EntityService extends EventEmitter {
       this._smartAppService.updateInstalledSmartAppState(
         installedSmartApp.id,
         stateCopy,
-        context.state
+        context.state,
       );
     } else {
       //throw error if function not found
@@ -402,7 +437,7 @@ export class EntityService extends EventEmitter {
 
   public getInstalledSmartAppConfigurationPage(
     id: string,
-    pageName: string
+    pageName: string,
   ): any {
     try {
       let preferences: any =
@@ -421,7 +456,7 @@ export class EntityService extends EventEmitter {
           }
         } else {
           let page = (preferences.pageList as Array<any>).find(
-            (page) => pageName === page.name
+            (page) => pageName === page.name,
           );
           if (page) {
             if (page.content) {
@@ -446,7 +481,7 @@ export class EntityService extends EventEmitter {
       id,
       content,
       null,
-      null
+      null,
     );
 
     if (dynamicPageResponse) {
@@ -460,13 +495,13 @@ export class EntityService extends EventEmitter {
 
   private buildSmartAppSandbox(
     installedSmartApp: InstalledSmartApp,
-    includeMappings: boolean = false
+    includeMappings: boolean = false,
   ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger(
       "SMARTAPP",
       installedSmartApp.id,
-      installedSmartApp.displayName
+      installedSmartApp.displayName,
     );
 
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
@@ -477,7 +512,7 @@ export class EntityService extends EventEmitter {
       this.scheduleService,
       false,
       false,
-      includeMappings
+      includeMappings,
     );
     sandbox.state = smartAppDelegate.state;
     if (includeMappings) {
@@ -488,7 +523,7 @@ export class EntityService extends EventEmitter {
 
     smartAppDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (smartAppDelegate as any)[sandboxMethod].bind(
-        smartAppDelegate
+        smartAppDelegate,
       );
     });
 
@@ -516,7 +551,7 @@ export class EntityService extends EventEmitter {
         if (typeof settingLookupVal === "undefined") {
           let installedSmartAppSetting: InstalledSmartAppSetting =
             this.isaSettings.find(
-              (element: InstalledSmartAppSetting) => element.name == prop
+              (element: InstalledSmartAppSetting) => element.name == prop,
             );
           if (typeof installedSmartAppSetting != "undefined") {
             if (installedSmartAppSetting.type.startsWith("capability")) {
@@ -525,13 +560,13 @@ export class EntityService extends EventEmitter {
                   settingLookupVal =
                     this.shEntityService.buildDeviceWrapperList(
                       JSON.parse(installedSmartAppSetting.value),
-                      this.shDeviceService
+                      this.shDeviceService,
                     );
                 } else {
                   let deviceId = installedSmartAppSetting.value;
                   settingLookupVal = this.shEntityService.buildDeviceWrapper(
                     this.shDeviceService.getDevice(deviceId),
-                    this.shDeviceService
+                    this.shDeviceService,
                   );
                 }
               } else {
@@ -577,8 +612,8 @@ export class EntityService extends EventEmitter {
     let deviceWrappers: DeviceWrapper[] = [];
     deviceIds.forEach((devId) =>
       deviceWrappers.push(
-        this.buildDeviceWrapper(this._deviceService.getDevice(devId))
-      )
+        this.buildDeviceWrapper(this._deviceService.getDevice(devId)),
+      ),
     );
     let deviceWrapperList = new DeviceWrapperList(deviceWrappers);
     let deviceWrapperHandler = {
@@ -597,7 +632,7 @@ export class EntityService extends EventEmitter {
           return function (...args: any[]) {
             if (dwTarget.devices != null) {
               dwTarget.devices.forEach((dw: DeviceWrapper) =>
-                this.shEntityService.runDeviceMethod(dw.id, dwProp, args)
+                this.shEntityService.runDeviceMethod(dw.id, dwProp, args),
               );
             }
           }.bind(this);
@@ -611,17 +646,17 @@ export class EntityService extends EventEmitter {
     integrationId: string,
     deviceNetworkId: string,
     methodName: string,
-    args: any[]
+    args: any[],
   ) {
     let device: Device = this._deviceService.getDeviceByIntegrationAndDNI(
       integrationId,
-      deviceNetworkId
+      deviceNetworkId,
     );
     if (device != null) {
       this.runDeviceMethod(device.id, methodName, args);
     } else {
       logger.warn(
-        `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`
+        `Cannot find device ${deviceNetworkId} with integration id ${integrationId}.`,
       );
     }
   }
@@ -629,7 +664,7 @@ export class EntityService extends EventEmitter {
   public runDeviceMethod(id: string, methodName: string, args: any[]) {
     let device: Device = this._deviceService.getDevice(id);
     let deviceHandler: DeviceHandler = this._deviceService.getDeviceHandler(
-      device.deviceHandlerId
+      device.deviceHandlerId,
     );
     //TODO: check that method name is listed as a command
     try {
@@ -640,7 +675,7 @@ export class EntityService extends EventEmitter {
         methodName,
         `deviceHandler_${deviceHandler.id}`,
         context,
-        args
+        args,
       );
       this._deviceService.processReturnObj(device, returnVal);
       //update state
@@ -652,7 +687,7 @@ export class EntityService extends EventEmitter {
 
   private buildDeviceSandbox(
     device: Device,
-    deviceHandler: DeviceHandler
+    deviceHandler: DeviceHandler,
   ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("Device", device.id, device.displayName);
@@ -660,21 +695,21 @@ export class EntityService extends EventEmitter {
       device,
       this,
       this._deviceService,
-      this.scheduleService
+      this.scheduleService,
     );
 
     sandbox["HubAction"] = HubAction;
     sandbox.state = JSON.parse(JSON.stringify(device.state));
     deviceDelegate.sandboxMethods.forEach((sandboxMethod: string) => {
       sandbox[sandboxMethod] = (deviceDelegate as any)[sandboxMethod].bind(
-        deviceDelegate
+        deviceDelegate,
       );
     });
 
     sandbox["metadata"] = () => {};
     sandbox["device"] = this.buildDeviceWrapper(device);
     sandbox["zigbee"] = new ZigBeeUtils(
-      new DeviceWrapper(device, this._deviceService)
+      new DeviceWrapper(device, this._deviceService),
     );
 
     if (deviceHandler.includes != null) {
@@ -699,7 +734,7 @@ export class EntityService extends EventEmitter {
     methodName: string,
     entityName: string,
     context: any,
-    args: any[]
+    args: any[],
   ): any {
     if (!context) {
       context = {};
