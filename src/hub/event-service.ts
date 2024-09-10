@@ -23,7 +23,7 @@ export class EventService {
     // look up subscription
     if ("DEVICE" === event.source) {
       let subscriptions: string[] = this.getSubscriptionListForDevice(
-        event.sourceId
+        event.sourceId,
       );
       if (subscriptions != null && subscriptions.length > 0) {
         subscriptions.forEach((subscriptionId: string) => {
@@ -59,9 +59,9 @@ export class EventService {
       let subscriptions: string[] = Array.from(
         new Set(
           Array.from(this.getLocationToSubscriptionMap().values()).flatMap(
-            (arr) => arr
-          )
-        )
+            (arr) => arr,
+          ),
+        ),
       );
       if (subscriptions != null && subscriptions.length > 0) {
         subscriptions.forEach((subscriptionId: string) => {
@@ -104,13 +104,13 @@ export class EventService {
     source: string,
     sourceId: string,
     date: Date,
-    maxEvents: number
+    maxEvents: number,
   ): ParrotEventWrapper[] {
     let events = this._eventDataStore.eventsSince(
       source,
       sourceId,
       date,
-      maxEvents
+      maxEvents,
     );
     return events?.map((evt) => new ParrotEventWrapper(evt));
   }
@@ -120,14 +120,14 @@ export class EventService {
     sourceId: string,
     startDate: Date,
     endDate: Date,
-    maxEvents: number
+    maxEvents: number,
   ): ParrotEventWrapper[] {
     let events = this._eventDataStore.eventsBetween(
       source,
       sourceId,
       startDate,
       endDate,
-      maxEvents
+      maxEvents,
     );
     return events?.map((evt) => new ParrotEventWrapper(evt));
   }
@@ -137,7 +137,7 @@ export class EventService {
     subscribedAppId: string,
     attributeNameAndValue: string,
     handlerMethod: string,
-    options: any
+    options: any,
   ): void {
     let subscription: Subscription = new Subscription();
     subscription.id = crypto.randomUUID();
@@ -152,20 +152,35 @@ export class EventService {
     // check for existing subscription
     if (
       !Array.from(this.getSubscriptionInfo().values()).find((s) =>
-        subscription.equals(s)
+        subscription.equals(s),
       )
     ) {
       this.getSubscriptionInfo().set(subscription.id, subscription);
       if (subscription.deviceId != null) {
-        // if (getDeviceToSubscriptionMap().get(deviceId) == null) {
-        //     getDeviceToSubscriptionMap().put(deviceId, new ArrayList<>(Arrays.asList(subscription.getId())));
-        // } else {
-        //     getDeviceToSubscriptionMap().get(deviceId).add(subscription.getId());
-        // }
+        if (this.getDeviceToSubscriptionMap().get(deviceId) == null) {
+          this.getDeviceToSubscriptionMap().set(deviceId, [subscription.id]);
+        } else {
+          this.getDeviceToSubscriptionMap().get(deviceId).push(subscription.id);
+        }
       }
     }
 
     this.saveSubscriptionInfo();
+  }
+
+  public deleteSubscriptionsForInstalledSmartApp(
+    installedSmartAppId: string,
+  ): void {
+    let save = false;
+    Array.from(this.getSubscriptionInfo().values()).forEach((subscription) => {
+      if (subscription.subscribedAppId == installedSmartAppId) {
+        this.getSubscriptionInfo().delete(subscription.id);
+        save = true;
+      }
+    });
+    if (save) {
+      this.saveSubscriptionInfo();
+    }
   }
 
   private getSubscriptionListForDevice(deviceId: string): string[] {
@@ -218,7 +233,7 @@ export class EventService {
       if (fs.existsSync("userData/config/subscriptions.yaml")) {
         const data = fs.readFileSync(
           "userData/config/subscriptions.yaml",
-          "utf-8"
+          "utf-8",
         );
         if (data) {
           let parsedFile = YAML.parse(data);
@@ -260,7 +275,7 @@ export class EventService {
           YAML.stringify(Array.from(this._subscriptionInfo.values())),
           (err: any) => {
             if (err) throw err;
-          }
+          },
         );
       } catch (err) {
         console.log(err);

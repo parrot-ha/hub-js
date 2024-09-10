@@ -9,7 +9,7 @@ const express = require("express");
 
 module.exports = function (
   smartAppService: SmartAppService,
-  entityService: EntityService
+  entityService: EntityService,
 ) {
   const router = express.Router();
 
@@ -51,7 +51,7 @@ module.exports = function (
       smartAppId = smartAppService.addChildInstalledSmartApp(
         parentAppId,
         appName,
-        namespace
+        namespace,
       );
     } else {
       let smartAppTypeId = body.id;
@@ -68,7 +68,7 @@ module.exports = function (
       smartAppService.getInstalledSmartApp(id);
 
     let smartApp: SmartApp = smartAppService.getSmartApp(
-      installedSmartApp.smartAppId
+      installedSmartApp.smartAppId,
     );
     let model: any = {
       id: installedSmartApp.id,
@@ -116,16 +116,17 @@ module.exports = function (
     let id: string = req.params.id;
 
     //run uninstalled method
+    //TODO: move all this to entity service deleteInstalledSmartApp()
     entityService
       .runSmartAppMethod(id, "uninstalled", null)
       .then(() => {
-        let isaRemoved: boolean = smartAppService.deleteInstalledSmartApp(id);
+        let isaRemoved: boolean = entityService.deleteInstalledSmartApp(id);
         res.json({ success: isaRemoved });
       })
       .catch((err) => {
         //TODO: only handle missing method exception if its for a method other than uninstalled
         console.log(err);
-        let isaRemoved: boolean = smartAppService.deleteInstalledSmartApp(id);
+        let isaRemoved: boolean = entityService.deleteInstalledSmartApp(id);
         res.json({ success: isaRemoved });
       });
   });
@@ -137,7 +138,7 @@ module.exports = function (
     let prom: Promise<any> = entityService.runSmartAppMethod(
       installedSmartAppId,
       method,
-      null
+      null,
     );
     prom
       .then(() => {
@@ -150,9 +151,9 @@ module.exports = function (
   });
 
   router.get("/:id/schedules", (req: Request, res: Response) => {
-      let id: string = req.params.id;
-      let schedules = entityService.getSchedule("SMARTAPP", id);
-      res.json(schedules);
+    let id: string = req.params.id;
+    let schedules = entityService.getSchedule("SMARTAPP", id);
+    res.json(schedules);
   });
 
   // router.get("/:id/child-apps", (req: Request, res: Response) => {
@@ -173,7 +174,7 @@ module.exports = function (
     let id: string = req.params.id;
     let pageInfo: any = entityService.getInstalledSmartAppConfigurationPage(
       id,
-      null
+      null,
     );
     res.json(pageInfo);
   });
@@ -184,7 +185,7 @@ module.exports = function (
     let pageName = req.params.pageName;
     let pageInfo: any = entityService.getInstalledSmartAppConfigurationPage(
       id,
-      pageName
+      pageName,
     );
     res.json(pageInfo);
   });
