@@ -1,4 +1,6 @@
 import * as crypto from "crypto";
+import { DeviceWrapper } from "../../device/models/device-wrapper";
+import { State } from "../../device/models/state";
 
 export class ParrotEvent {
   id: string;
@@ -17,7 +19,7 @@ export class ParrotEvent {
   sourceId: string | undefined;
   isDigital: boolean | undefined;
 
-  constructor(properties: any) {
+  constructor(properties: any, deviceWrapper: DeviceWrapper = null) {
     this.id = crypto.randomUUID();
     this.date = new Date();
     this._isStateChange = false;
@@ -43,12 +45,31 @@ export class ParrotEvent {
         }
       }
 
-      if (!properties.hasOwnProperty("isStateChange")) {
-        this._isStateChange = true;
-      } else {
-        this._isStateChange = properties.isStateChange;
-      }
+      if (deviceWrapper != null) {
+        this.source = "DEVICE";
+        this.sourceId = deviceWrapper.id;
+        this.displayName = deviceWrapper.displayName;
 
+        if (!properties.hasOwnProperty("isStateChange")) {
+          // populate "is state change"
+          let currentState: State = deviceWrapper.currentState(this.name);
+          if (currentState == null) {
+            this._isStateChange = true;
+          } else if (this.value != null) {
+            this._isStateChange = this.value != currentState.value;
+          } else {
+            this._isStateChange = false;
+          }
+        } else {
+          this._isStateChange = properties.isStateChange;
+        }
+      } else {
+        if (!properties.hasOwnProperty("isStateChange")) {
+          this._isStateChange = true;
+        } else {
+          this._isStateChange = properties.isStateChange;
+        }
+      }
       // TODO: extract rest of properties
     }
   }

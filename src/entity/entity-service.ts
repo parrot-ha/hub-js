@@ -62,10 +62,7 @@ export class EntityService extends EventEmitter {
       return;
     }
 
-    let event: ParrotEvent = new ParrotEvent(properties);
-    event.source = "DEVICE";
-    event.sourceId = device.id;
-    event.displayName = device.displayName;
+    let event: ParrotEvent = new ParrotEvent(properties, device);
     this.processEvent(event);
   }
 
