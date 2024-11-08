@@ -1,21 +1,39 @@
+import { isBlank, isEmpty, stringToObject } from "../utils/string-utils";
+
 export function sendEvent(eventMap: any) {
   processEvent(eventMap);
 }
 
-export function parseLanMessage(message: string) {
-  if (message == null) {
+export function parseLanMessage(stringToParse: string): any {
+  if (stringToParse == null) {
     return null;
   }
-  if (message.trim().length === 0) {
+  if (isBlank(stringToParse)) {
     return {};
   }
-  const lanMessageMap = {};
-  const lanMessageInterim = {};
-  message.split(",").forEach((item) => {
-    item.split(":");
-  });
-  //TODO: handle message
-  return null;
+  let lanMessageMap: any = {};
+
+  let lanMessageInterim = stringToObject(stringToParse, ",", ":");
+
+  for (let key of Object.keys(lanMessageInterim)) {
+    if (isEmpty(lanMessageInterim[key])) {
+      lanMessageMap[key] = null;
+    } else if ("headers" === key) {
+      // base 64 decode the headers
+      let header = atob(lanMessageInterim[key]);
+      lanMessageMap["header"] = header;
+
+      // TODO: is there a library we can use to do this?
+      let headerMap = stringToObject(header, "\n", ":");
+      lanMessageMap["headers"] = headerMap;
+    } else if ("body" === key) {
+      // base 64 decode the message
+      lanMessageMap["body"] = atob(lanMessageInterim[key]);
+    } else {
+      lanMessageMap[key] = lanMessageInterim[key];
+    }
+  }
+  return lanMessageMap;
 }
 
 function processEvent(eventMap: any) {

@@ -35,8 +35,9 @@ export function stringToObject( stringToSplit: string,  entrySeparator: string, 
   let map: any = {};
   let stringToSplitArray: string[] = stringToSplit.split(entrySeparator);
   for (let mapEntryString of stringToSplitArray) {
-      if (mapEntryString.indexOf(keyValueSeparator) > -1) {
-          let mapEntryStringArray = mapEntryString.split(keyValueSeparator);
+      let keyValueSeparatorIndex = mapEntryString.indexOf(keyValueSeparator);
+      if (keyValueSeparatorIndex > -1) {
+          let mapEntryStringArray = [mapEntryString.substring(0, keyValueSeparatorIndex), mapEntryString.substring(keyValueSeparatorIndex+1)];//mapEntryString.split(keyValueSeparator);
           if (mapEntryStringArray.length > 1) {
               if (isBlank(mapEntryStringArray[1])) {
                   map[mapEntryStringArray[0]] = null;
@@ -47,7 +48,10 @@ export function stringToObject( stringToSplit: string,  entrySeparator: string, 
               map[mapEntryStringArray[0].trim()] = null;
           }
       } else {
-          map[mapEntryString.trim()] = null;
+          let key = mapEntryString.trim()
+          if(key.length > 0) {
+            map[mapEntryString.trim()] = null;
+          }
       }
   }
 

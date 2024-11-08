@@ -3,6 +3,7 @@ import https from "https";
 import { ServiceFactory } from "../hub/service-factory";
 import { isBlank, isEmpty, stringToObject } from "../utils/string-utils";
 import { ScheduleService } from "../hub/schedule-service";
+import { timeOffset as timeUtilsOffset } from "../utils/time-utils";
 
 // common functions for SmartApps and Devices
 export abstract class EntityDelegate {
@@ -15,6 +16,7 @@ export abstract class EntityDelegate {
     "parseLanMessage",
     "now",
     "toDateTime",
+    "timeOffset",
   ];
 
   get sandboxMethods() {
@@ -222,5 +224,9 @@ export abstract class EntityDelegate {
 
   public toDateTime(dateTimeString: string): Date {
     return new Date(dateTimeString);
+  }
+
+  public timeOffset(offset: string | number): number {
+    return timeUtilsOffset(offset);
   }
 }
