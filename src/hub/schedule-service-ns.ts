@@ -196,7 +196,7 @@ export class ScheduleServiceNS implements ScheduleService {
             )
             .catch((err) => {
               //TODO: log this to the live log
-              logger.warn("error! scheduled method", err);
+              logger.warn(`error! scheduled method ${jobSchedule.handlerMethod}, app id ${jobSchedule.entityId}`, err);
             });
         } else if (jobSchedule.entityType === "DEVICE") {
           entityService.runDeviceMethod(
