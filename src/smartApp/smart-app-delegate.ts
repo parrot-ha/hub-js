@@ -81,8 +81,8 @@ export class SmartAppDelegate extends EntityDelegate {
     return this._installedSmartApp.id;
   }
 
-  public getSunriseAndSunset(): { sunrise: Date; sunset: Date } {
-    return this._locationService.getSunriseAndSunset({});
+  public getSunriseAndSunset(options: any): { sunrise: Date; sunset: Date } {
+    return this._locationService.getSunriseAndSunset(options);
   }
 
   subscribe(

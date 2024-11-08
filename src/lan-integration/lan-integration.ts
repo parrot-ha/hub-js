@@ -40,7 +40,7 @@ export default class LanIntegration extends DeviceIntegration {
           );
         }
 
-        let remoteAddress = req.ip;
+        let remoteAddress = req.hostname;
         if (remoteAddress?.startsWith("::ffff:")) {
           remoteAddress = remoteAddress.substring(7);
         }
@@ -56,7 +56,7 @@ export default class LanIntegration extends DeviceIntegration {
           }
           this.processLanMessage(
             macAddress || "",
-            req.socket.remoteAddress,
+            remoteAddress,
             req.socket.remotePort,
             reqBody,
             headersStr

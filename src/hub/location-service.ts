@@ -4,6 +4,8 @@ import { randomUUID } from "crypto";
 import { Mode } from "./models/mode";
 import { toInteger } from "../utils/object-utils";
 import { LocationDataStore } from "./location-data-store";
+import { timeOffset } from "../utils/time-utils";
+
 const SunCalc = require("suncalc");
 
 export class LocationService {
@@ -73,8 +75,8 @@ export class LocationService {
     let latitude = null;
     let longitude = null;
 
-    let sunriseOffset = toInteger(options?.sunriseOffset) || 0;
-    let sunsetOffset = toInteger(options?.sunsetOffset) || 0;
+    let sunriseOffset = timeOffset(options?.sunriseOffset) || 0;
+    let sunsetOffset = timeOffset(options?.sunsetOffset) || 0;
 
     if (latitude == null && longitude == null && this.getLocation() != null) {
       latitude = this.getLocation().latitude;
@@ -92,12 +94,12 @@ export class LocationService {
       //TODO: should we return the rest of the values from suncalc module?
       if (times.sunrise != null)
         sunriseSunsetObj.sunrise = new Date(
-          times.sunrise.getTime() + sunriseOffset
+          times.sunrise.getTime() + sunriseOffset,
         );
 
       if (times.sunset != null)
         sunriseSunsetObj.sunset = new Date(
-          times.sunset.getTime() + sunsetOffset
+          times.sunset.getTime() + sunsetOffset,
         );
     }
     return sunriseSunsetObj;

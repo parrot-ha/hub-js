@@ -172,6 +172,9 @@ export default class ZigbeeIntegration
           databasePath: DB,
           backupPath: backup,
           databaseBackupPath: dbBackup,
+          adapter: {
+            transmitPower: 20
+          }
         });
 
         this._controller.on("message", async (msg: MessagePayload) => {
