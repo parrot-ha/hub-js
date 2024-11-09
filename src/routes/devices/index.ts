@@ -175,11 +175,11 @@ module.exports = function (
     let cancel: boolean = "true" === req.query.cancel;
     let longPoll: boolean = "true" === req.query.poll;
     if (cancel) {
-      deviceService.cancelRemoveDeviceAsync(id);
+      entityService.cancelRemoveDeviceAsync(id);
       res.status(202).end();
     } else {
       let deviceRemovedPromise: Promise<boolean> =
-        deviceService.removeDeviceAsync(id, force);
+        entityService.removeDeviceAsync(id, force);
 
       // wait for promise to resolve if we are long polling
       if (longPoll) {

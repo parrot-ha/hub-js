@@ -12,6 +12,13 @@ export abstract class EntityDelegate {
     "httpPost",
     "runIn",
     "schedule",
+    "runEvery1Minute",
+    "runEvery5Minutes",
+    "runEvery10Minutes",
+    "runEvery15Minutes",
+    "runEvery30Minutes",
+    "runEvery1Hour",
+    "runEvery3Hours",
     "unschedule",
     "parseLanMessage",
     "now",
@@ -208,6 +215,65 @@ export abstract class EntityDelegate {
       typeof handlerMethod === "function" ? handlerMethod.name : handlerMethod,
       options,
     );
+  }
+
+  public runEvery1Minute(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfMinutes(1, handlerMethod);
+  }
+  public runEvery5Minutes(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfMinutes(5, handlerMethod);
+  }
+  public runEvery10Minutes(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfMinutes(10, handlerMethod);
+  }
+
+  public runEvery15Minutes(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfMinutes(15, handlerMethod);
+  }
+
+  public runEvery30Minutes(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfMinutes(30, handlerMethod);
+  }
+  public runEvery1Hour(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfHours(1, handlerMethod);
+  }
+  public runEvery3Hours(handlerMethod: string | Function): void {
+    this.scheduleEveryTimeOfHours(3, handlerMethod);
+  }
+
+  private scheduleEveryTimeOfMinutes(
+    minutesParam: number,
+    handlerMethod: string | Function,
+  ): void {
+    // create a cron schedule that starts randomly in the next minutes
+    let seconds = this.getRandomInt(60);
+    // pick a random time to start
+
+    let minutes = new Date().getMinutes() + this.getRandomInt(minutesParam);
+    if (minutes > 59) {
+      minutes = minutes - 60;
+    }
+    let cronExpression = `${seconds} ${minutes}/${minutesParam} * * * ?`;
+    this.schedule(cronExpression, handlerMethod, null);
+  }
+
+  private scheduleEveryTimeOfHours(
+    hourParam: number,
+    handlerMethod: string | Function,
+  ): void {
+    // create a cron schedule that starts randomly in the next minutes
+    let seconds = this.getRandomInt(60);
+    // pick a random time to start
+    let minutes = new Date().getMinutes() + this.getRandomInt(60);
+    if (minutes > 59) {
+      minutes = minutes - 60;
+    }
+    let cronExpression = `${seconds} ${minutes} */${hourParam} * * * ?`;
+    this.schedule(cronExpression, handlerMethod, null);
+  }
+
+  private getRandomInt(max: number): number {
+    return Math.floor(Math.random() * max);
   }
 
   public unschedule(handlerMethod: string | Function) {
