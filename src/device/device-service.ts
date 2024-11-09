@@ -258,6 +258,10 @@ export class DeviceService {
 
   public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
     let device = this.getDevice(id);
+    if(device == null) {
+      // device doesn't exist, just return true.
+      return new Promise((resolve) => resolve(true));
+    }
     let integrationId = device.integration?.id;
     let deviceNetworkId = device.deviceNetworkId;
 
@@ -283,10 +287,6 @@ export class DeviceService {
         resolve(this._deviceDataStore.deleteDevice(id));
       }
     });
-  }
-
-  public cancelRemoveDeviceAsync(id: string): void {
-    // TODO: call integration and cancel remove device if it supports that.
   }
 
   public saveDevice(device: Device): void {

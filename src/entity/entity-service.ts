@@ -339,6 +339,7 @@ export class EntityService extends EventEmitter {
     let status = this._smartAppService.deleteInstalledSmartApp(id);
     if (status) {
       this._eventService.deleteSubscriptionsForInstalledSmartApp(id);
+      this.scheduleService.unschedule("SMARTAPP", id, null);
     }
     return status;
   }
@@ -579,6 +580,26 @@ export class EntityService extends EventEmitter {
         return settingLookupVal ? settingLookupVal : null;
       },
     };
+  }
+
+  public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
+    return new Promise((resolve) => {
+      let removeDevicePromise = this._deviceService.removeDeviceAsync(id, force);
+      if(removeDevicePromise != null) {
+        removeDevicePromise.then((result) => {
+          if(result) {
+            this.scheduleService.unschedule("DEVICE", id, null)
+            resolve(true)
+          } else {
+            resolve(false)
+          }
+        })
+      }
+    })
+  }
+
+  public cancelRemoveDeviceAsync(id: string): void {
+    // TODO: call integration and cancel remove device if it supports that.
   }
 
   protected buildDeviceWrapper(device: Device) {
