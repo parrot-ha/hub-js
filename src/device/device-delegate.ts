@@ -23,7 +23,7 @@ export class DeviceDelegate extends EntityDelegate {
     scheduleService: ScheduleService
   ) {
     super(scheduleService);
-    this._device = new DeviceWrapper(device, deviceService);
+    this._device = new DeviceWrapper(device, deviceService, this._entityService);
     this._entityService = entityService;
     this._deviceService = deviceService;
   }
@@ -61,7 +61,7 @@ export class DeviceDelegate extends EntityDelegate {
     );
     childDevices?.forEach((childDevice) =>
       childDeviceWrappers.push(
-        new DeviceWrapper(childDevice, this._deviceService)
+        new DeviceWrapper(childDevice, this._deviceService, this._entityService)
       )
     );
     return childDeviceWrappers;
@@ -82,7 +82,7 @@ export class DeviceDelegate extends EntityDelegate {
       properties
     );
     if (childDevice != null) {
-      return new DeviceWrapper(childDevice, this._deviceService);
+      return new DeviceWrapper(childDevice, this._deviceService, this._entityService);
     } else {
       return null;
     }

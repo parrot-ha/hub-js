@@ -76,6 +76,7 @@ jest.mock("zigbee-herdsman", () => {
         },
       };
     }),
+    setLogger: jest.fn()
   };
 });
 

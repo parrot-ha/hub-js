@@ -4,14 +4,17 @@ import { Device } from "./device";
 import { EntityWrapper } from "../../entity/models/entity-wrapper";
 import { State } from "./state";
 import { hexStringToInt } from "../../utils/hex-utils";
+import { EntityService } from "../../entity/entity-service";
 
 export class DeviceWrapper implements EntityWrapper {
   private _device: Device;
   private _deviceService: DeviceService;
+  private _entityService: EntityService;
 
-  constructor(device: Device, deviceService: DeviceService) {
+  constructor(device: Device, deviceService: DeviceService, entityService: EntityService) {
     this._device = device;
     this._deviceService = deviceService;
+    this._entityService = entityService;
   }
 
   getType(): string {
@@ -97,5 +100,11 @@ export class DeviceWrapper implements EntityWrapper {
 
   public currentValue(attributeName: string): any {
     return this.latestValue(attributeName);
+  }
+
+  sendEvent(eventMap: any) {
+    if (this._device?.id) {
+      this._entityService.sendDeviceEvent(eventMap, this);
+    }
   }
 }
