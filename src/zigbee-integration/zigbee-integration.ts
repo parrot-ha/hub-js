@@ -2,7 +2,7 @@ import { ResetIntegrationExtension } from "../integration/reset-integration-exte
 import { HubAction } from "../device/models/hub-action";
 import { HubResponse } from "../device/models/hub-response";
 import { DeviceIntegration } from "../integration/device-integration";
-const { Controller } = require("zigbee-herdsman");
+const { Controller, setLogger } = require("zigbee-herdsman");
 import { randomBytes } from "crypto";
 import {
   hexStringToInt,
@@ -36,6 +36,9 @@ import { parse } from "./zigbee-message-parser";
 const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
 });
+const zigbeeHerdsmanLogger = require("../hub/logger-service")({
+  source: "ZigbeeHerdsman"
+})
 
 const backup = "userData/zigbee/network.bak";
 
@@ -94,6 +97,9 @@ export default class ZigbeeIntegration
   }
 
   public start(): void {
+    // set logger for zigbee herdsman controller
+    setLogger(zigbeeHerdsmanLogger);
+
     let initialSetup: boolean = false;
     //TODO: lookup from settings
     let serialPortName = this.getSettingAsString("serialPortName");

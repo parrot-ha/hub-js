@@ -70,7 +70,8 @@ export class ParrotEventWrapper {
         ServiceFactory.getInstance()
           .getDeviceService()
           .getDevice(this.deviceId),
-        ServiceFactory.getInstance().getDeviceService()
+        ServiceFactory.getInstance().getDeviceService(),
+        ServiceFactory.getInstance().getEntityService()
       );
     return null;
   }

@@ -603,7 +603,7 @@ export class EntityService extends EventEmitter {
   }
 
   protected buildDeviceWrapper(device: Device) {
-    let deviceWrapper = new DeviceWrapper(device, this._deviceService);
+    let deviceWrapper = new DeviceWrapper(device, this._deviceService, this);
     let deviceWrapperHandler = {
       shEntityService: this,
       get(dwTarget: any, dwProp: any, dwReceiver: any): any {
@@ -727,7 +727,7 @@ export class EntityService extends EventEmitter {
     sandbox["metadata"] = () => {};
     sandbox["device"] = this.buildDeviceWrapper(device);
     sandbox["zigbee"] = new ZigBeeUtils(
-      new DeviceWrapper(device, this._deviceService),
+      new DeviceWrapper(device, this._deviceService, this),
     );
 
     if (deviceHandler.includes != null) {
