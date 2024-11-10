@@ -8,6 +8,21 @@ import { DeviceWrapper } from "../device/models/device-wrapper";
 import { Device } from "../device/models/device";
 import { Subscription } from "./models/subscription";
 
+// mock logger so we don't get output in standard logger file,
+jest.mock("../hub/logger-service", () => (metadata: any) => {
+  return {
+    silly(param) {
+      console.log("silly:", param);
+    },
+    debug(param) {
+      console.log("debug:", param);
+    },
+    warn(param) {
+      console.log("warn:", param);
+    },
+  };
+});
+
 describe("process events", () => {
   test("two events with first event throwing error", () => {
     const mockRunSmartAppMethod = jest.fn();

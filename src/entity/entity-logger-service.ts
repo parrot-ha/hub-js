@@ -1,4 +1,5 @@
 const { createLogger, format, transports } = require("winston");
+const DailyRotateFile = require('winston-daily-rotate-file');
 const { combine, timestamp, json } = format;
 
 const myCustomLevels = {
@@ -18,15 +19,28 @@ const myCustomLevels = {
   },
 };
 
+var transport = new DailyRotateFile({
+  format: combine(timestamp(), json()),
+  filename: 'parrothublive-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '5m',
+  maxFiles: '14d',
+  createSymlink: true,
+  symlinkName: 'parrothublive.log',
+  tailable: true,
+});
+
+transport.on('error', (error: Error) => {
+  // log or handle errors here
+  console.log(error.message);
+});
+
 const _winstonLogger = createLogger({
   levels: myCustomLevels.levels,
   level: "trace",
   transports: [
-    new transports.File({
-      format: combine(timestamp(), json()),
-      filename: "parrothublive.log",
-      maxsize: 1000000
-    }),
+    transport
   ],
 });
 

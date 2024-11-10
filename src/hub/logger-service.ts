@@ -1,14 +1,32 @@
 const { createLogger, format, transports } = require("winston");
+const DailyRotateFile = require('winston-daily-rotate-file');
 const { combine, timestamp, json } = format;
+
+var transport = new DailyRotateFile({
+  level: 'info',
+  filename: 'parrothub-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '14d',
+  createSymlink: true,
+  symlinkName: 'parrothub.log',
+  tailable: true,
+});
+
+transport.on('error', (error: Error) => {
+  // log or handle errors here
+  console.log(error.message);
+});
 
 const _winstonLogger = createLogger({
   level: "silly",
+  format: combine(
+    timestamp(),
+    json()
+  ),
   transports: [
-    new transports.File({
-      format: combine(timestamp(), json()),
-      filename: "parrothub.log",
-      maxsize: 5000000,
-    }),
+    transport
   ],
 });
 
