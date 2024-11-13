@@ -32,6 +32,7 @@ export default class LanIntegration extends DeviceIntegration {
         logger.info(`listening on ${this._serverPort}`);
       });
       app.all("/*", (req: Request, res: Response) => {
+        let remotePort = req.socket.remotePort;
         let headersStr = `${req.method} ${req.originalUrl} ${req.httpVersion}\n`;
 
         for (let x = 0; x + 1 <= req.rawHeaders.length; x += 2) {
@@ -40,7 +41,7 @@ export default class LanIntegration extends DeviceIntegration {
           );
         }
 
-        let remoteAddress = req.hostname;
+        let remoteAddress = req.socket.remoteAddress;
         if (remoteAddress?.startsWith("::ffff:")) {
           remoteAddress = remoteAddress.substring(7);
         }
@@ -57,7 +58,7 @@ export default class LanIntegration extends DeviceIntegration {
           this.processLanMessage(
             macAddress || "",
             remoteAddress,
-            req.socket.remotePort,
+            remotePort,
             reqBody,
             headersStr
           );
