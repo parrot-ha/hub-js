@@ -2,10 +2,17 @@ import { SmartApp, SmartAppType } from "./models/smart-app";
 import { InstalledSmartApp } from "./models/installed-smart-app";
 import { SmartAppDataStore } from "./smart-app-data-store";
 import { InstalledSmartAppSetting } from "./models/installed-smart-app-setting";
-import { saveFile, deleteFile, parseYamlFile } from "../utils/file-utils";
+import {
+  saveUserFile,
+  parseUserYamlFile,
+  deleteUserFile,
+  readUserDir,
+  readUserFile,
+  readFile,
+  saveFileSync,
+} from "../utils/file-utils";
 
 import YAML from "yaml";
-import fs from "fs";
 import { randomUUID } from "crypto";
 
 const logger = require("../hub/logger-service")({
@@ -81,8 +88,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   deleteInstalledSmartApp(id: string): boolean {
     //delete file in installedSmartApps
     try {
-      let fileName = `userData/config/installedSmartApps/${id}.yaml`;
-      deleteFile(fileName);
+      deleteUserFile(`config/installedSmartApps/${id}.yaml`);
     } catch (err) {
       logger.warn("Unable to remove installed smart app config file for " + id);
       return false;
@@ -159,13 +165,13 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     let newChildAppMap: Map<string, string[]> = new Map<string, string[]>();
 
     try {
-      const isaDirFiles: string[] = fs.readdirSync(
-        "userData/config/installedSmartApps/",
-      );
+      const isaDirFiles: string[] = readUserDir("config/installedSmartApps/");
       isaDirFiles.forEach((isaDirFile) => {
         try {
           if (isaDirFile.endsWith(".yaml")) {
-            let parsedFile = parseYamlFile(`userData/config/installedSmartApps/${isaDirFile}`);
+            let parsedFile = parseUserYamlFile(
+              `config/installedSmartApps/${isaDirFile}`,
+            );
             let installedSmartApp = new InstalledSmartApp();
             installedSmartApp.id = parsedFile.id;
             installedSmartApp.label = parsedFile.label;
@@ -216,7 +222,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/config/installedSmartApps/: ${err.message}`,
+        `Error loading files from config/installedSmartApps/: ${err.message}`,
       );
     }
     this._installedSmartApps = newInstalledSmartApps;
@@ -228,7 +234,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     try {
       let isaYaml = YAML.stringify(existingIsa.toJSON());
       if (isaYaml?.trim().length > 0) {
-        saveFile(`userData/config/installedSmartApps/${isaId}.yaml`, isaYaml);
+        saveUserFile(`config/installedSmartApps/${isaId}.yaml`, isaYaml);
         return true;
       } else {
         return false;
@@ -294,16 +300,13 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
 
     // load smartApps from text files in user data directory
     try {
-      let dhFilePath: string = "userData/smartApps/";
-      const dhDirFiles: string[] = fs.readdirSync(dhFilePath);
-      dhDirFiles.forEach((dhDirFile) => {
-        if (dhDirFile.endsWith(".js")) {
-          let fileName = `${dhFilePath}${dhDirFile}`;
+      let saFilePath: string = "smartApps/";
+      const saDirFiles: string[] = readUserDir(saFilePath);
+      saDirFiles.forEach((saDirFile) => {
+        if (saDirFile.endsWith(".js")) {
+          let fileName = `${saFilePath}${saDirFile}`;
           try {
-            smartAppSourceList.set(
-              fileName,
-              fs.readFileSync(fileName)?.toString(),
-            );
+            smartAppSourceList.set(fileName, readUserFile(fileName));
           } catch (err) {
             logger.warn("error processing user smartApp file", fileName, err);
           }
@@ -320,9 +323,7 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
     if (SmartAppType.USER === sa.type) {
       //delete source file
       try {
-        if (fs.existsSync(sa.file)) {
-          fs.unlinkSync(sa.file);
-        }
+        deleteUserFile(sa.file);
       } catch (err) {
         logger.warn("Unable to delete smart app " + id);
         return false;
@@ -336,30 +337,31 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
 
   getSmartAppSourceCode(id: string): string {
     let smartApp: SmartApp = this.getSmartApp(id);
-    return fs.readFileSync(smartApp.file)?.toString();
+    //TODO: move this to smart app service? data store probably shouldn't know about smart apps that are not user.
+    if(smartApp?.type === SmartAppType.USER) {
+      return readUserFile(smartApp.file);
+    } else {
+      return readFile(smartApp.file);
+    }
   }
 
   public updateSmartAppSourceCode(id: string, sourceCode: string): boolean {
     let smartApp: SmartApp = this.getSmartApp(id);
-    if (smartApp?.type == SmartAppType.USER) {
-      fs.writeFile(smartApp.file, sourceCode, (err: any) => {
-        if (err) throw err;
-        return true;
-      });
+    if (smartApp?.type === SmartAppType.USER) {
+      saveFileSync(smartApp.file, sourceCode);
+      return true;
     }
 
     return false;
   }
 
   createSmartAppSourceCode(sourceCode: string, smartApp: SmartApp): string {
-    let fileName: string = `userData/smartApps/${smartApp.id}.js`;
+    let fileName: string = `smartApps/${smartApp.id}.js`;
     smartApp.file = fileName;
     try {
-      fs.writeFile(fileName, sourceCode, (err: any) => {
-        if (err) throw err;
-        // save smart app definition
-        this.createSmartApp(smartApp);
-      });
+      saveUserFile(fileName, sourceCode);
+      // save smart app definition
+      this.createSmartApp(smartApp);
       return smartApp.id;
     } catch (err) {
       logger.warn("error when saving smartApp file", err);
@@ -370,8 +372,8 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   private saveSmartApps(): void {
     if (this.getSmartAppCache()?.size > 0) {
       try {
-        saveFile(
-          "userData/config/smartApps.yaml",
+        saveUserFile(
+          "config/smartApps.yaml",
           YAML.stringify(this.getSmartAppCache().values()),
         );
       } catch (err) {
@@ -384,13 +386,13 @@ export class SmartAppFileDataStore implements SmartAppDataStore {
   private loadSmartAppConfig(): Map<string, SmartApp> {
     let smartAppInfo: Map<string, SmartApp> = new Map<string, SmartApp>();
     try {
-      let parsedFile = parseYamlFile("userData/config/smartApps.yaml");
-        if (parsedFile && Array.isArray(parsedFile)) {
-          parsedFile.forEach((fileDH) => {
-            let smartApp: SmartApp = SmartApp.buildFromObject(fileDH);
-            smartAppInfo.set(smartApp.id, smartApp);
-          });
-        }
+      let parsedFile = parseUserYamlFile("config/smartApps.yaml");
+      if (parsedFile && Array.isArray(parsedFile)) {
+        parsedFile.forEach((fileSA) => {
+          let smartApp: SmartApp = SmartApp.buildFromObject(fileSA);
+          smartAppInfo.set(smartApp.id, smartApp);
+        });
+      }
     } catch (err) {
       logger.warn(err);
     }

@@ -19,10 +19,10 @@ import { HubResponse } from "./models/hub-response";
 import { IntegrationRegistry } from "../integration/integration-registry";
 import { difference } from "../utils/object-utils";
 import { Fingerprint } from "./models/fingerprint";
+import { readDir, readFile } from "../utils/file-utils";
 
 const logger = require("../hub/logger-service")({ source: "DeviceService" });
 
-const fs = require("fs");
 const vm = require("vm");
 
 export class DeviceService {
@@ -34,7 +34,7 @@ export class DeviceService {
 
   public constructor(
     deviceDataStore: DeviceDataStore,
-    integrationRegistry: IntegrationRegistry
+    integrationRegistry: IntegrationRegistry,
   ) {
     this._deviceDataStore = deviceDataStore;
     this._integrationRegistry = integrationRegistry;
@@ -54,11 +54,11 @@ export class DeviceService {
 
   public getDeviceByIntegrationAndDNI(
     integrationId: string,
-    deviceNetworkId: string
+    deviceNetworkId: string,
   ): Device {
     return this._deviceDataStore.getDeviceByIntegrationAndDNI(
       integrationId,
-      deviceNetworkId
+      deviceNetworkId,
     );
   }
 
@@ -72,7 +72,7 @@ export class DeviceService {
     namespace: string,
     typeName: string,
     deviceNetworkId: string,
-    properties: any
+    properties: any,
   ): Device {
     if (isBlank(deviceNetworkId)) {
       throw new Error("IllegalArgument: Device Network ID not specified.");
@@ -84,7 +84,7 @@ export class DeviceService {
     } else {
       deviceHandler = this._deviceDataStore.getDeviceHandlerByNamespaceAndName(
         namespace,
-        typeName
+        typeName,
       );
     }
 
@@ -93,7 +93,7 @@ export class DeviceService {
         "UnknownDeviceType: Unable to find device type for namespace: " +
           namespace +
           " and name: " +
-          typeName
+          typeName,
       );
     }
 
@@ -126,19 +126,19 @@ export class DeviceService {
   public deviceExists(
     integrationId: string,
     deviceNetworkId: string,
-    additionalIntegrationParameters: any = null
+    additionalIntegrationParameters: any = null,
   ): boolean {
     if (additionalIntegrationParameters != null) {
       if (deviceNetworkId != null) {
         let device: Device = this.getDeviceByIntegrationAndDNI(
           integrationId,
-          deviceNetworkId
+          deviceNetworkId,
         );
         if (device != null) {
           // check additional integration options
           return this.deviceMatchesIntegrationParameters(
             device,
-            additionalIntegrationParameters
+            additionalIntegrationParameters,
           );
         }
       } else {
@@ -147,7 +147,7 @@ export class DeviceService {
             device.integration?.id === integrationId &&
             this.deviceMatchesIntegrationParameters(
               device,
-              additionalIntegrationParameters
+              additionalIntegrationParameters,
             )
           ) {
             return true;
@@ -165,7 +165,7 @@ export class DeviceService {
 
   protected deviceMatchesIntegrationParameters(
     device: Device,
-    additionalIntegrationParameters: any
+    additionalIntegrationParameters: any,
   ): boolean {
     if (device != null && device.integration != null) {
       //check additional integration options
@@ -200,7 +200,7 @@ export class DeviceService {
   public addDevice(device: Device) {
     if (device.name == null) {
       device.name = this._deviceDataStore.getDeviceHandler(
-        device.deviceHandlerId
+        device.deviceHandlerId,
       ).name;
     }
     return this._deviceDataStore.createDevice(device);
@@ -239,7 +239,7 @@ export class DeviceService {
         deviceSetting.processValueTypeAndMultiple(
           setting.value,
           setting.type,
-          setting.multiple
+          setting.multiple,
         );
       } else {
         // create new setting
@@ -247,7 +247,7 @@ export class DeviceService {
         deviceSetting.processValueTypeAndMultiple(
           setting.value,
           setting.type,
-          setting.multiple
+          setting.multiple,
         );
         device.addSetting(deviceSetting);
       }
@@ -258,7 +258,7 @@ export class DeviceService {
 
   public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
     let device = this.getDevice(id);
-    if(device == null) {
+    if (device == null) {
       // device doesn't exist, just return true.
       return new Promise((resolve) => resolve(true));
     }
@@ -271,7 +271,7 @@ export class DeviceService {
         let integrationPromise = this._integrationRegistry.removeDeviceAsync(
           integrationId,
           deviceNetworkId,
-          force
+          force,
         );
         if (integrationPromise != null) {
           integrationPromise.then((result) => {
@@ -326,14 +326,14 @@ export class DeviceService {
       // check each device handler info against what is in the config file.
       this.compareNewAndExistingDeviceHandlers(
         deviceHandlers,
-        Array.from(newDeviceHandlerInfoMap.values())
+        Array.from(newDeviceHandlerInfoMap.values()),
       );
     }
   }
 
   private compareNewAndExistingDeviceHandlers(
     existingDeviceHandlers: DeviceHandler[],
-    newDeviceHandlers: DeviceHandler[]
+    newDeviceHandlers: DeviceHandler[],
   ): void {
     // check each device handler info against what is in the config file.
     for (let newDHInfo of newDeviceHandlers) {
@@ -341,7 +341,7 @@ export class DeviceService {
 
       let foundExistingDH: boolean = false;
       for (let oldDHInfo of existingDeviceHandlers) {
-        if (fileName === oldDHInfo.file) {
+        if (fileName === oldDHInfo.file && oldDHInfo.type == newDHInfo.type) {
           foundExistingDH = true;
           // the file name matches, let see if any of the values have changed.
           //TODO: this check is only if the file name stays the same, add another check in case all the contents stay the same, but the file name changed.
@@ -353,6 +353,15 @@ export class DeviceService {
             newDHInfo.id = oldDHInfo.id;
             this._deviceDataStore.updateDeviceHandler(newDHInfo);
           }
+        } else if (
+          oldDHInfo.type == DeviceHandlerType.USER &&
+          oldDHInfo.file.startsWith("userData") &&
+          oldDHInfo.file.substring("userData/".length) === fileName
+        ) {
+          // existing user device handler, but old data file with hard coded userData folder name
+          // this is a hack to allow for backwards compatibility with old device handlers
+          newDHInfo.id = oldDHInfo.id;
+          this._deviceDataStore.updateDeviceHandler(newDHInfo);
         }
       }
       if (!foundExistingDH) {
@@ -370,16 +379,16 @@ export class DeviceService {
     >();
 
     // load built in device handlers
-    const dhDirFiles: string[] = fs.readdirSync("deviceHandlers/");
+    const dhDirFiles: string[] = readDir("deviceHandlers/");
     dhDirFiles.forEach((dhDirFile) => {
       if (dhDirFile.endsWith(".js")) {
         let fileName = `deviceHandlers/${dhDirFile}`;
         try {
-          const sourceCode = fs.readFileSync(fileName)?.toString();
+          const sourceCode = readFile(fileName)?.toString();
           let deviceHandler = this.processDeviceHandlerSource(
             fileName,
             sourceCode,
-            DeviceHandlerType.SYSTEM
+            DeviceHandlerType.SYSTEM,
           );
           deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
         } catch (err) {
@@ -395,7 +404,7 @@ export class DeviceService {
       let deviceHandler = this.processDeviceHandlerSource(
         fileName,
         sourceCode,
-        DeviceHandlerType.USER
+        DeviceHandlerType.USER,
       );
       deviceHandlerInfo.set(deviceHandler.id, deviceHandler);
     });
@@ -423,10 +432,10 @@ export class DeviceService {
     if (existingState) {
       changes.removed.forEach((key) => delete existingState[key]);
       Object.keys(changes.updated).forEach(
-        (key) => (existingState[key] = changes.updated[key])
+        (key) => (existingState[key] = changes.updated[key]),
       );
       Object.keys(changes.added).forEach(
-        (key) => (existingState[key] = changes.added[key])
+        (key) => (existingState[key] = changes.added[key]),
       );
       this._deviceDataStore.saveDeviceState(id, existingState);
     } else {
@@ -436,7 +445,7 @@ export class DeviceService {
 
   public getDeviceHandlerByNameAndNamespace(
     name: string,
-    namespace: string
+    namespace: string,
   ): DeviceHandler {
     for (let deviceHandler of this.getDeviceHandlers()) {
       if (
@@ -454,7 +463,8 @@ export class DeviceService {
   public getDeviceHandlerPreferencesLayout(deviceHandlerId: string): any {
     let deviceHandler: DeviceHandler = this.getDeviceHandler(deviceHandlerId);
     if (deviceHandler) {
-      const data = fs.readFileSync(deviceHandler.file);
+      const data =
+        this._deviceDataStore.getDeviceHandlerSourceCode(deviceHandlerId);
       const testCodeMetadata = data.toString();
       let deviceMetadataDelegate: DeviceMetadataDelegate =
         new DeviceMetadataDelegate(false, true);
@@ -471,7 +481,7 @@ export class DeviceService {
 
   public getAttributeForDeviceHandler(
     deviceHandlerId: string,
-    attributeName: string
+    attributeName: string,
   ): Attribute {
     let deviceHandler: DeviceHandler = this.getDeviceHandler(deviceHandlerId);
     if (deviceHandler == null) {
@@ -483,7 +493,7 @@ export class DeviceService {
     attributeName = attributeName.toLowerCase();
     if (deviceHandler.attributeList != null) {
       foundAttribute = deviceHandler.attributeList.find(
-        (attrib) => attrib.name.toLowerCase() === attributeName
+        (attrib) => attrib.name.toLowerCase() === attributeName,
       );
     }
     if (foundAttribute) {
@@ -496,7 +506,7 @@ export class DeviceService {
         if (capability != null) {
           if (capability.attributes != null) {
             foundAttribute = capability.attributes.find(
-              (attrib) => attrib.name.toLowerCase() === attributeName
+              (attrib) => attrib.name.toLowerCase() === attributeName,
             );
           }
         }
@@ -526,21 +536,21 @@ export class DeviceService {
     let deviceHandler = this.processDeviceHandlerSource(
       "newDeviceHandler",
       sourceCode,
-      DeviceHandlerType.USER
+      DeviceHandlerType.USER,
     );
     if (deviceHandler == null) {
       throw new Error("No definition found.");
     }
     let dhId: string = this._deviceDataStore.createDeviceHandlerSourceCode(
       sourceCode,
-      deviceHandler
+      deviceHandler,
     );
     return dhId;
   }
 
   public updateDeviceHandlerSourceCode(
     id: string,
-    sourceCode: string
+    sourceCode: string,
   ): boolean {
     let existingDeviceHandler: DeviceHandler = this.getDeviceHandler(id);
     if (existingDeviceHandler) {
@@ -548,15 +558,15 @@ export class DeviceService {
       let updatedDeviceHandler: DeviceHandler = this.processDeviceHandlerSource(
         existingDeviceHandler.file,
         sourceCode,
-        existingDeviceHandler.type
+        existingDeviceHandler.type,
       );
       this.updateDeviceHandlerIfChanged(
         existingDeviceHandler,
-        updatedDeviceHandler
+        updatedDeviceHandler,
       );
       return this._deviceDataStore.updateDeviceHandlerSourceCode(
         id,
-        sourceCode
+        sourceCode,
       );
     }
     throw new Error("Device Handler not found.");
@@ -564,7 +574,7 @@ export class DeviceService {
 
   private updateDeviceHandlerIfChanged(
     oldDeviceHandler: DeviceHandler,
-    newDeviceHandler: DeviceHandler
+    newDeviceHandler: DeviceHandler,
   ): void {
     // if any changes are made to the new app excluding client id and client secret, then update.
     // or if there are changes to the client id and client secret and the new app does not have it set to null
@@ -583,7 +593,7 @@ export class DeviceService {
   private processDeviceHandlerSource(
     fileName: string,
     sourceCode: string,
-    type: DeviceHandlerType = DeviceHandlerType.USER
+    type: DeviceHandlerType = DeviceHandlerType.USER,
   ): DeviceHandler {
     let metadataValue = this.getDeviceHandlerMetadata(sourceCode, fileName);
     let deviceHandler = new DeviceHandler();
@@ -626,7 +636,7 @@ export class DeviceService {
 
         let errStack = err.stack.substring(
           0,
-          err.stack.indexOf("at DeviceService.processDeviceHandlerSource")
+          err.stack.indexOf("at DeviceService.processDeviceHandlerSource"),
         );
         //TODO: better way to handle this?
         errStack = errStack.substring(0, errStack.lastIndexOf("at "));
@@ -641,7 +651,7 @@ export class DeviceService {
   }
 
   private buildMetadataSandbox(
-    deviceMetadataDelegate: DeviceMetadataDelegate
+    deviceMetadataDelegate: DeviceMetadataDelegate,
   ): any {
     let sandbox: any = {};
     sandbox["log"] = new EntityLogger("DEVICE", "NONE", "New Device Handler");
@@ -681,7 +691,7 @@ export class DeviceService {
   private processArrayRetObj(
     device: Device,
     arrayRetObj: Array<any>,
-    arrayRetObjIndex: number = 0
+    arrayRetObjIndex: number = 0,
   ) {
     if (arrayRetObjIndex < arrayRetObj.length) {
       let delay = 0;
@@ -709,7 +719,7 @@ export class DeviceService {
           delay,
           device,
           arrayRetObj,
-          arrayRetObjIndex + 1
+          arrayRetObjIndex + 1,
         );
       } else {
         this.processArrayRetObj(device, arrayRetObj, arrayRetObjIndex + 1);
@@ -725,7 +735,7 @@ export class DeviceService {
       // send to integration or zigbee network.
       this._integrationRegistry.processAction(
         integrationId,
-        new HubAction(msg, Protocol.ZIGBEE, device.deviceNetworkId, null)
+        new HubAction(msg, Protocol.ZIGBEE, device.deviceNetworkId, null),
       );
     } else if (msg.startsWith("delay")) {
       // this should be handled earlier
@@ -736,7 +746,7 @@ export class DeviceService {
         let integrationId = device.integration.id;
         this._integrationRegistry.processAction(
           integrationId,
-          new HubAction(msg, Protocol.OTHER, device.deviceNetworkId, null)
+          new HubAction(msg, Protocol.OTHER, device.deviceNetworkId, null),
         );
       }
     }
@@ -745,7 +755,7 @@ export class DeviceService {
 
   public processHubAction(
     integrationId: string,
-    action: HubAction
+    action: HubAction,
   ): HubResponse {
     if (action != null) {
       if (action.action != null && action.action.startsWith("delay")) {
@@ -783,12 +793,12 @@ export class DeviceService {
     let fingerprints = this.getFingerprints();
     if (logger.isLevelEnabled("debug")) {
       logger.debug(
-        "Fingerprints! " + JSON.stringify(Object.fromEntries(fingerprints))
+        "Fingerprints! " + JSON.stringify(Object.fromEntries(fingerprints)),
       );
     }
     if (logger.isLevelEnabled("debug")) {
       logger.debug(
-        "deviceInfo: " + JSON.stringify(Object.fromEntries(deviceInfo))
+        "deviceInfo: " + JSON.stringify(Object.fromEntries(deviceInfo)),
       );
     }
     let matchingScore = 0;
@@ -809,7 +819,7 @@ export class DeviceService {
             " id: " +
             fingerprints.get(matchingFingerprint) +
             " score: " +
-            matchingScore
+            matchingScore,
         );
       }
       return {
@@ -821,7 +831,7 @@ export class DeviceService {
     // if no match, return Thing
     let thingDeviceHandler = this.getDeviceHandlerByNameAndNamespace(
       "Thing",
-      "parrotha.device.virtual"
+      "parrotha.device.virtual",
     );
     if (thingDeviceHandler != null) {
       return { id: thingDeviceHandler.id, joinName: "Unknown Device" };
@@ -832,7 +842,7 @@ export class DeviceService {
 
   private fingerprintScore(
     fingerprint: Fingerprint,
-    deviceInfo: Map<string, string>
+    deviceInfo: Map<string, string>,
   ): number {
     if (deviceInfo == null || deviceInfo.size == 0) {
       return 0;

@@ -7,9 +7,10 @@ import { SmartAppInUseError } from "./errors/smart-app-in-use-error";
 import { difference } from "../utils/object-utils";
 import { EntityLogger } from "../entity/entity-logger-service";
 import { SmartAppDelegate } from "./smart-app-delegate";
+import { readDir, readFile } from "../utils/file-utils";
+
 const logger = require("../hub/logger-service")({ source: "SmartAppService" });
 
-const fs = require("fs");
 const vm = require("vm");
 
 export class SmartAppService {
@@ -49,7 +50,7 @@ export class SmartAppService {
   }
 
   public getInstalledSmartAppsBySmartApp(
-    smartAppId: string
+    smartAppId: string,
   ): InstalledSmartApp[] {
     return this._smartAppDataStore.getInstalledSmartAppsBySmartApp(smartAppId);
   }
@@ -74,11 +75,11 @@ export class SmartAppService {
   public addChildInstalledSmartApp(
     parentAppId: string,
     appName: string,
-    namespace: string
+    namespace: string,
   ): string {
     let childSmartApp: SmartApp = this.getSmartAppByNameAndNamespace(
       appName,
-      namespace
+      namespace,
     );
     let parentInstalledSmartApp: InstalledSmartApp =
       this.getInstalledSmartApp(parentAppId);
@@ -86,7 +87,7 @@ export class SmartAppService {
       throw new Error("Parent App Id not found: " + parentAppId);
     }
     let parentSmartApp: SmartApp = this.getSmartApp(
-      parentInstalledSmartApp.smartAppId
+      parentInstalledSmartApp.smartAppId,
     );
     if (
       childSmartApp.parent != null &&
@@ -105,7 +106,7 @@ export class SmartAppService {
 
   public getSmartAppByNameAndNamespace(
     name: string,
-    namespace: string
+    namespace: string,
   ): SmartApp {
     for (let smartApp of this.getSmartApps()) {
       if (smartApp.name === name && smartApp.namespace === namespace) {
@@ -120,7 +121,7 @@ export class SmartAppService {
   }
 
   public updateInstalledSmartApp(
-    installedSmartApp: InstalledSmartApp
+    installedSmartApp: InstalledSmartApp,
   ): boolean {
     return this._smartAppDataStore.updateInstalledSmartApp(installedSmartApp);
   }
@@ -128,7 +129,7 @@ export class SmartAppService {
   public updateInstalledSmartAppState(
     id: string,
     originalState: any,
-    updatedState: any
+    updatedState: any,
   ) {
     let changes = difference(updatedState, originalState);
     let installedSmartApp: InstalledSmartApp = this.getInstalledSmartApp(id);
@@ -136,10 +137,10 @@ export class SmartAppService {
     if (existingState) {
       changes.removed.forEach((key) => delete existingState[key]);
       Object.keys(changes.updated).forEach(
-        (key) => (existingState[key] = changes.updated[key])
+        (key) => (existingState[key] = changes.updated[key]),
       );
       Object.keys(changes.added).forEach(
-        (key) => (existingState[key] = changes.added[key])
+        (key) => (existingState[key] = changes.added[key]),
       );
       this._smartAppDataStore.updateInstalledSmartAppState(id, existingState);
     } else {
@@ -169,14 +170,14 @@ export class SmartAppService {
     let smartApp = this.processSmartAppSource(
       "newSmartApp",
       sourceCode,
-      SmartAppType.USER
+      SmartAppType.USER,
     );
     if (smartApp == null) {
       throw new Error("No definition found.");
     }
     let saId: string = this._smartAppDataStore.createSmartAppSourceCode(
       sourceCode,
-      smartApp
+      smartApp,
     );
     return saId;
   }
@@ -188,7 +189,7 @@ export class SmartAppService {
       let updatedSmartApp: SmartApp = this.processSmartAppSource(
         existingSmartApp.file,
         sourceCode,
-        existingSmartApp.type
+        existingSmartApp.type,
       );
       this.updateSmartAppIfChanged(existingSmartApp, updatedSmartApp);
       return this._smartAppDataStore.updateSmartAppSourceCode(id, sourceCode);
@@ -198,7 +199,7 @@ export class SmartAppService {
 
   private updateSmartAppIfChanged(
     oldSmartApp: SmartApp,
-    newSmartApp: SmartApp
+    newSmartApp: SmartApp,
   ): void {
     // if any changes are made to the new app excluding client id and client secret, then update.
     // or if there are changes to the client id and client secret and the new app does not have it set to null
@@ -230,7 +231,7 @@ export class SmartAppService {
         isaSetting.processValueTypeAndMultiple(
           setting.value,
           setting.type,
-          setting.multiple
+          setting.multiple,
         );
       } else {
         // create new setting
@@ -240,7 +241,7 @@ export class SmartAppService {
         isaSetting.processValueTypeAndMultiple(
           setting.value,
           setting.type,
-          setting.multiple
+          setting.multiple,
         );
         isa.addSetting(isaSetting);
       }
@@ -257,24 +258,27 @@ export class SmartAppService {
     let newSmartAppInfoMap: Map<string, SmartApp> = this.processSmartAppInfo();
 
     if (smartApps != null && newSmartAppInfoMap != null) {
-      // check each device handler info against what is in the config file.
+      // check each smart app info against what is in the config file.
       this.compareNewAndExistingSmartApps(
         smartApps,
-        Array.from(newSmartAppInfoMap.values())
+        Array.from(newSmartAppInfoMap.values()),
       );
     }
   }
 
   private compareNewAndExistingSmartApps(
     existingSmartApps: SmartApp[],
-    newSmartApps: SmartApp[]
+    newSmartApps: SmartApp[],
   ): void {
     // check each smart app info against what is in the config file.
     for (let newSmartApp of newSmartApps) {
       let fileName: string = newSmartApp.file;
-
       let existingSmartApp = existingSmartApps?.filter(
-        (esa) => esa.file === fileName
+        (esa) =>
+          (esa.file === fileName && esa.type === newSmartApp.type) ||
+          (esa.file.startsWith("userData") &&
+            esa.type === SmartAppType.USER &&
+            esa.file.substring("userData/".length) === fileName), // can be removed once systems are updated
       );
 
       if (
@@ -311,17 +315,20 @@ export class SmartAppService {
     let smartAppInfo: Map<string, SmartApp> = new Map<string, SmartApp>();
 
     // load built in smart apps
-    const saDirFiles: string[] = fs.readdirSync("smartApps/");
+    const saDirFiles: string[] = readDir("smartApps/");
     saDirFiles.forEach((saDirFile) => {
       if (saDirFile.endsWith(".js")) {
         let fileName = `smartApps/${saDirFile}`;
         try {
-          const sourceCode = fs.readFileSync(fileName)?.toString();
+          const sourceCode = readFile(fileName)?.toString();
           let smartApp = this.processSmartAppSource(
             fileName,
             sourceCode,
-            SmartAppType.SYSTEM
+            SmartAppType.SYSTEM,
           );
+          if (smartAppInfo.has(smartApp.id)) {
+            logger.warn("Duplicate smart app id: " + smartApp.id);
+          }
           smartAppInfo.set(smartApp.id, smartApp);
         } catch (err) {
           logger.warn("error processing system smart app files" + err.message);
@@ -336,8 +343,11 @@ export class SmartAppService {
       let smartApp = this.processSmartAppSource(
         fileName,
         sourceCode,
-        SmartAppType.USER
+        SmartAppType.USER,
       );
+      if (smartAppInfo.has(smartApp.id)) {
+        logger.warn("Duplicate smart app id: " + smartApp.id);
+      }
       smartAppInfo.set(smartApp.id, smartApp);
     });
 
@@ -347,7 +357,7 @@ export class SmartAppService {
   }
 
   public getSmartAppPreferencesByInstalledSmartApp(
-    installedSmartAppId: string
+    installedSmartAppId: string,
   ) {
     let installedSmartApp: InstalledSmartApp =
       this.getInstalledSmartApp(installedSmartAppId);
@@ -357,7 +367,7 @@ export class SmartAppService {
     return this.getSmartAppMetadata(
       sourceCode,
       `${installedSmartApp}.js`,
-      false
+      false,
     )?.preferences;
   }
 
@@ -366,7 +376,7 @@ export class SmartAppService {
     fileName: string,
     includeDefinition: boolean,
     includePreferences: boolean = true,
-    includeMappings: boolean = false
+    includeMappings: boolean = false,
   ) {
     let smartAppDelegate: SmartAppDelegate = new SmartAppDelegate(
       null,
@@ -376,7 +386,7 @@ export class SmartAppService {
       null,
       includeDefinition,
       includePreferences,
-      includeMappings
+      includeMappings,
     );
     let sandbox = this.buildMetadataContext(smartAppDelegate);
 
@@ -391,7 +401,7 @@ export class SmartAppService {
 
         let errStack = err.stack.substring(
           0,
-          err.stack.indexOf("at SmartAppService.processSmartAppSource")
+          err.stack.indexOf("at SmartAppService.processSmartAppSource"),
         );
         //TODO: better way to handle this?
         errStack = errStack.substring(0, errStack.lastIndexOf("at "));
@@ -408,7 +418,7 @@ export class SmartAppService {
   private processSmartAppSource(
     fileName: string,
     sourceCode: string,
-    type: SmartAppType = SmartAppType.USER
+    type: SmartAppType = SmartAppType.USER,
   ): SmartApp {
     let metadataValue = this.getSmartAppMetadata(sourceCode, fileName, true);
 

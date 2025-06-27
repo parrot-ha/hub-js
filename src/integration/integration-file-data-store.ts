@@ -2,9 +2,8 @@ import { Protocol } from "../device/models/protocol";
 import { IntegrationConfiguration } from "./models/integration-configuration";
 import { IntegrationSetting } from "./models/integration-setting";
 import { randomUUID } from "crypto";
-import YAML from "yaml";
-import fs from "fs";
 import { IntegrationDataStore } from "./integration-data-store";
+import { createUserDirectory, deleteUserFile, readUserDir, saveUserYamlFile, parseUserYamlFile } from "../utils/file-utils";
 const logger = require("../hub/logger-service")({
   source: "DeviceFileDataStore",
 });
@@ -24,7 +23,7 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
 
   public getIntegrationSettingValue(
     integrationId: string,
-    configurationId: string
+    configurationId: string,
   ): string {
     let integrationConfiguration: IntegrationConfiguration =
       this.getIntegrationById(integrationId);
@@ -43,7 +42,7 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
     configurationKey: string,
     configurationValue: any,
     type: string,
-    multiple: boolean
+    multiple: boolean,
   ): void {
     let integrationConfiguration: IntegrationConfiguration =
       this.getIntegrationById(integrationId);
@@ -66,7 +65,7 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
   public addIntegrationConfiguration(
     protocol: Protocol,
     integrationTypeId: string,
-    settings: IntegrationSetting[]
+    settings: IntegrationSetting[],
   ): string {
     let integrationConfiguration: IntegrationConfiguration =
       new IntegrationConfiguration();
@@ -77,7 +76,7 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
 
     this.getIntegrationMap().set(
       integrationConfiguration.id,
-      integrationConfiguration
+      integrationConfiguration,
     );
     this.saveIntegrationConfiguration(integrationConfiguration);
 
@@ -87,13 +86,10 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
   public removeIntegrationConfiguration(integrationId: string): boolean {
     //delete file in integrations
     try {
-      let fileName: string = `userData/config/integrations/${integrationId}.yaml`;
-      if (fs.existsSync(fileName)) {
-        fs.unlinkSync(fileName);
-      }
+      deleteUserFile(`config/integrations/${integrationId}.yaml`);
     } catch (err) {
       logger.warn(
-        "Unable to delete integration configuration " + integrationId
+        "Unable to delete integration configuration " + integrationId,
       );
       return false;
     }
@@ -107,33 +103,25 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
   }
 
   public updateIntegrationConfiguration(
-    integrationConfiguration: IntegrationConfiguration
+    integrationConfiguration: IntegrationConfiguration,
   ): void {
     if (this.getIntegrationMap() != null) {
       this.getIntegrationMap().set(
         integrationConfiguration.id,
-        integrationConfiguration
+        integrationConfiguration,
       );
       this.saveIntegrationConfiguration(integrationConfiguration);
     }
   }
 
   private saveIntegrationConfiguration(
-    integrationConfiguration: IntegrationConfiguration
+    integrationConfiguration: IntegrationConfiguration,
   ): void {
     try {
-      let integrationConfigurationYaml = YAML.stringify(
-        integrationConfiguration.toJSON()
+      saveUserYamlFile(
+        `config/integrations/${integrationConfiguration.id}.yaml`,
+        integrationConfiguration.toJSON(),
       );
-      if (integrationConfigurationYaml?.trim().length > 0) {
-        fs.writeFile(
-          `userData/config/integrations/${integrationConfiguration.id}.yaml`,
-          integrationConfigurationYaml,
-          (err: any) => {
-            if (err) throw err;
-          }
-        );
-      }
     } catch (err) {
       console.log(err);
     }
@@ -163,22 +151,15 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
       IntegrationConfiguration
     >();
 
-    try {
-      if (!fs.existsSync("userData/config/integrations/")) {
-        fs.mkdirSync("userData/config/integrations/");
-      }
 
-      const intDirFiles: string[] = fs.readdirSync(
-        "userData/config/integrations/"
-      );
+    try {
+      createUserDirectory("config/integrations/");
+
+      const intDirFiles: string[] = readUserDir("config/integrations/")
       intDirFiles.forEach((intDirFile) => {
         try {
           if (intDirFile.endsWith(".yaml")) {
-            const data = fs.readFileSync(
-              `userData/config/integrations/${intDirFile}`,
-              "utf-8"
-            );
-            let parsedFile = YAML.parse(data);
+            let parsedFile = parseUserYamlFile("config/integrations", intDirFile);
             let integrationConfig: IntegrationConfiguration =
               IntegrationConfiguration.fromJSON(parsedFile);
             integrationsTemp.set(integrationConfig.id, integrationConfig);
@@ -189,7 +170,7 @@ export class IntegrationFileDataStore implements IntegrationDataStore {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/config/integrations/: ${err.message}`
+        `Error loading files from config/integrations/: ${err.message}`,
       );
     }
 

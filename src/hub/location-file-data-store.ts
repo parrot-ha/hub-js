@@ -4,6 +4,7 @@ import { Location } from "./models/location";
 import YAML from "yaml";
 import fs from "fs";
 import { Mode } from "./models/mode";
+import { parseUserYamlFile, saveUserYamlFile } from "../utils/file-utils";
 
 export class LocationFileDataStore implements LocationDataStore {
   private _location: Location;
@@ -26,14 +27,7 @@ export class LocationFileDataStore implements LocationDataStore {
   saveLocation(location: Location): void {
     this._location = location;
     try {
-      fs.writeFile(
-        "userData/config/location.yaml",
-        YAML.stringify(this._location),
-        (err: any) => {
-          if (err) throw err;
-          return true;
-        }
-      );
+      saveUserYamlFile("config/location.yaml", this._location);
     } catch (err) {
       console.log("error when saving location config file", err);
     }
@@ -42,13 +36,7 @@ export class LocationFileDataStore implements LocationDataStore {
   saveHub(hub: Hub): void {
     this._hub = hub;
     try {
-      fs.writeFile(
-        "userData/config/hub.yaml",
-        YAML.stringify(this._hub),
-        (err: any) => {
-          if (err) throw err;
-        }
-      );
+      saveUserYamlFile("config/hub.yaml", this._hub);
     } catch (err) {
       console.log("error when saving hub config file", err);
     }
@@ -56,12 +44,8 @@ export class LocationFileDataStore implements LocationDataStore {
 
   private loadLocation(): void {
     try {
-      const locationConfig = fs.readFileSync(
-        "userData/config/location.yaml",
-        "utf-8"
-      );
-      if (locationConfig) {
-        let parsedFile = YAML.parse(locationConfig);
+      const parsedFile = parseUserYamlFile("config/location.yaml");
+      if (parsedFile) {
         let location = new Location();
         location.id = parsedFile.id;
         location.temperatureScale = parsedFile.temperatureScale;
@@ -92,9 +76,8 @@ export class LocationFileDataStore implements LocationDataStore {
 
   private loadHub(): void {
     try {
-      const hubConfig = fs.readFileSync("userData/config/hub.yaml", "utf-8");
-      if (hubConfig) {
-        let parsedFile = YAML.parse(hubConfig);
+      const parsedFile = parseUserYamlFile("config/hub.yaml");
+      if (parsedFile) {
         let hub = new Hub();
         hub.id = parsedFile.id;
         hub.name = parsedFile.name;
