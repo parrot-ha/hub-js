@@ -14,12 +14,29 @@ import {
 } from "./file-utils";
 import fs from "fs";
 
-describe("test full lifecycle of file utils", () => {
-  afterAll(() => {
-    // Clean up the test directories and files
-    // fs.rmdirSync(`${getHomeDir()}/fullLifecycleTest`, { recursive: true });
-  });
+let deleteUserDir = false;
 
+beforeAll(() => {
+  // Create a test directory
+  if (!fs.existsSync(getHomeDir())) {
+    deleteUserDir = true;
+    fs.mkdirSync(getHomeDir());
+  }
+});
+
+afterAll(async () => {
+  // Clean up the test directories and files
+  if (deleteUserDir) {
+    fs.rmdirSync(`${getHomeDir()}`, { recursive: true });
+  } else {
+    // If we don't delete the user directory, we should delete the test directory
+    if (fs.existsSync(`${getHomeDir()}/fullLifecycleTest`)) {
+      fs.rmdirSync(`${getHomeDir()}/fullLifecycleTest`, { recursive: true });
+    }
+  }
+});
+
+describe("test full lifecycle of file utils", () => {
   test("full lifecycle", () => {
     createUserDirectory("fullLifecycleTest");
     saveUserYamlFile("fullLifecycleTest/test.yaml", { myKey: "myValue" });
@@ -34,7 +51,6 @@ describe("test full lifecycle of file utils", () => {
         true,
       );
 
-      console.log("reading files");
       // Read the files
       const yamlContents = fs.readFileSync(
         `${getHomeDir()}/fullLifecycleTest/test.yaml`,
@@ -72,18 +88,14 @@ test("save and read yaml file", async () => {
   createUserDirectory("testYamlFile");
   saveUserYamlFile("testYamlFile/test.yaml", { myKey: "myValue" });
   await new Promise((r) => setTimeout(r, 2000));
-  expect(
-    fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`),
-  ).toBe(true);
-  
+  expect(fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`)).toBe(true);
+
   const contents = parseUserYamlFile("testYamlFile", "test.yaml");
 
   expect(contents).toBeDefined();
-  expect(contents.myKey).toBe( "myValue");
+  expect(contents.myKey).toBe("myValue");
   deleteUserFile("testYamlFile/test.yaml");
-  expect(
-    fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`),
-  ).toBe(false);
+  expect(fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`)).toBe(false);
   fs.rmdirSync(`${getHomeDir()}/testYamlFile`, { recursive: true });
 });
 
@@ -122,6 +134,7 @@ test("delete file with backup", async () => {
 
 test("dont save empty file with backup", async () => {
   // Clean up
+
   if (fs.existsSync(`${getHomeDir()}/testEmptyFileWithBackup`)) {
     fs.rmdirSync(`${getHomeDir()}/testEmptyFileWithBackup`, {
       recursive: true,
@@ -186,6 +199,7 @@ describe("readDir", () => {
     const result = readUserDir("/empty-directory");
     expect(result).toEqual([]);
     fs.rmdirSync(`${getHomeDir()}/empty-directory`, { recursive: true });
+    console.log("should return an empty array when the directory is empty");
   });
 
   test("should throw an error when the directory does not exist", () => {
