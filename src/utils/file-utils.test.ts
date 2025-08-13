@@ -12,6 +12,7 @@ import {
   saveFileSync,
   readUserFile,
 } from "./file-utils";
+import path from "path";
 import fs from "fs";
 
 let deleteUserDir = false;
@@ -34,6 +35,37 @@ afterAll(async () => {
       fs.rmdirSync(`${getHomeDir()}/fullLifecycleTest`, { recursive: true });
     }
   }
+});
+
+describe("parseUserYamlFile error handling", () => {
+  test("should run catch block and parse .bak file", () => {
+    const testDir = "parseYamlCatchTest";
+    const testFile = "test.yaml";
+    const testFilePath = path.join(testDir, testFile);
+    const homeDir = require("./file-utils").getHomeDir();
+    const fullPath = path.join(homeDir, testFilePath);
+    const bakPath = fullPath + ".bak";
+
+    // Setup: create test directory and files
+    if (!fs.existsSync(path.join(homeDir, testDir))) {
+      fs.mkdirSync(path.join(homeDir, testDir));
+    }
+    fs.writeFileSync(fullPath, "not: valid: yaml: : :");
+    fs.writeFileSync(bakPath, "valid: true");
+
+    try {
+      const result = parseUserYamlFile(testDir, testFile);
+      expect(result).toBeDefined();
+      expect(result.valid).toBe(true);
+    } finally {
+      // Teardown: remove test files and directory
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+      if (fs.existsSync(bakPath)) fs.unlinkSync(bakPath);
+      if (fs.existsSync(path.join(homeDir, testDir))) {
+        fs.rmdirSync(path.join(homeDir, testDir));
+      }
+    }
+  });
 });
 
 describe("test full lifecycle of file utils", () => {
@@ -87,14 +119,17 @@ describe("test full lifecycle of file utils", () => {
 test("save and read yaml file", async () => {
   createUserDirectory("testYamlFile");
   saveUserYamlFile("testYamlFile/test.yaml", { myKey: "myValue" });
+  saveUserYamlFile("testYamlFile/test1.yaml", { anotherKey: "anotherValue" });
   await new Promise((r) => setTimeout(r, 2000));
   expect(fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`)).toBe(true);
+  expect(fs.existsSync(`${getHomeDir()}/testYamlFile/test1.yaml`)).toBe(true);
 
   const contents = parseUserYamlFile("testYamlFile", "test.yaml");
 
   expect(contents).toBeDefined();
   expect(contents.myKey).toBe("myValue");
   deleteUserFile("testYamlFile/test.yaml");
+  deleteUserFile("testYamlFile/test1.yaml");
   expect(fs.existsSync(`${getHomeDir()}/testYamlFile/test.yaml`)).toBe(false);
   fs.rmdirSync(`${getHomeDir()}/testYamlFile`, { recursive: true });
 });
