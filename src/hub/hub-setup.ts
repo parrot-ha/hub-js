@@ -1,31 +1,18 @@
-import fs from "fs";
 import { ServiceFactory } from "./service-factory";
 import { flushFiles } from "../utils/file-utils";
+import { createUserDirectory } from "../utils/file-utils";
 // setup the system at start
 
 // create any user directories needed
 function createDirectories() {
-  if (!fs.existsSync("userData/")) {
-    fs.mkdirSync("userData/");
-  }
-  if (!fs.existsSync("userData/config/")) {
-    fs.mkdirSync("userData/config/");
-  }
-  if (!fs.existsSync("userData/config/devices/")) {
-    fs.mkdirSync("userData/config/devices/");
-  }
-  if (!fs.existsSync("userData/config/installedSmartApps/")) {
-    fs.mkdirSync("userData/config/installedSmartApps/");
-  }
-  if (!fs.existsSync("userData/config/schedules/")) {
-    fs.mkdirSync("userData/config/schedules/");
-  }
-  if (!fs.existsSync("userData/deviceHandlers/")) {
-    fs.mkdirSync("userData/deviceHandlers/");
-  }
-  if (!fs.existsSync("userData/smartApps/")) {
-    fs.mkdirSync("userData/smartApps/");
-  }
+  createUserDirectory("/");
+  createUserDirectory("config/");
+  createUserDirectory("config/devices/");
+  createUserDirectory("config/installedSmartApps/");
+  createUserDirectory("config/schedules/");
+  createUserDirectory("deviceHandlers/");
+  createUserDirectory("smartApps/");
+  createUserDirectory("packages/");
 }
 
 export function setupSystem() {

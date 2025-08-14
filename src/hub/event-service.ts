@@ -1,10 +1,9 @@
 import { ParrotEvent } from "../entity/models/event";
 import { Subscription } from "../entity/models/subscription";
-import fs from "fs";
 import * as crypto from "crypto";
-import YAML from "yaml";
 import { EventDataStore } from "./event-data-store";
 import { ParrotEventWrapper } from "../entity/models/event-wrapper";
+import { parseUserYamlFile, saveUserYamlFile } from "../utils/file-utils";
 
 export class EventService {
   private _subscriptionInfo: Map<string, Subscription>;
@@ -230,34 +229,24 @@ export class EventService {
     >();
 
     try {
-      if (fs.existsSync("userData/config/subscriptions.yaml")) {
-        const data = fs.readFileSync(
-          "userData/config/subscriptions.yaml",
-          "utf-8",
-        );
-        if (data) {
-          let parsedFile = YAML.parse(data);
-          if (parsedFile && Array.isArray(parsedFile)) {
-            parsedFile.forEach((sub: Subscription) => {
-              tempSubscriptionInfo.set(sub.id, sub);
-              if (sub.deviceId) {
-                if (!tempDeviceToSubscriptionMap.get(sub.deviceId)) {
-                  tempDeviceToSubscriptionMap.set(sub.deviceId, [sub.id]);
-                } else {
-                  tempDeviceToSubscriptionMap.get(sub.deviceId).push(sub.id);
-                }
-              } else if (sub.locationId) {
-                if (!tempLocationToSubscriptionMap.get(sub.locationId)) {
-                  tempLocationToSubscriptionMap.set(sub.locationId, [sub.id]);
-                } else {
-                  tempLocationToSubscriptionMap
-                    .get(sub.locationId)
-                    .push(sub.id);
-                }
-              }
-            });
+      const parsedFile = parseUserYamlFile("config", "subscriptions.yaml");
+      if (parsedFile && Array.isArray(parsedFile)) {
+        parsedFile.forEach((sub: Subscription) => {
+          tempSubscriptionInfo.set(sub.id, sub);
+          if (sub.deviceId) {
+            if (!tempDeviceToSubscriptionMap.get(sub.deviceId)) {
+              tempDeviceToSubscriptionMap.set(sub.deviceId, [sub.id]);
+            } else {
+              tempDeviceToSubscriptionMap.get(sub.deviceId).push(sub.id);
+            }
+          } else if (sub.locationId) {
+            if (!tempLocationToSubscriptionMap.get(sub.locationId)) {
+              tempLocationToSubscriptionMap.set(sub.locationId, [sub.id]);
+            } else {
+              tempLocationToSubscriptionMap.get(sub.locationId).push(sub.id);
+            }
           }
-        }
+        });
       }
     } catch (err) {
       console.log(err);
@@ -270,12 +259,9 @@ export class EventService {
   private saveSubscriptionInfo(): void {
     if (this._subscriptionInfo != null) {
       try {
-        fs.writeFile(
-          "userData/config/subscriptions.yaml",
-          YAML.stringify(Array.from(this._subscriptionInfo.values())),
-          (err: any) => {
-            if (err) throw err;
-          },
+        saveUserYamlFile(
+          "config/subscriptions.yaml",
+          Array.from(this._subscriptionInfo.values()),
         );
       } catch (err) {
         console.log(err);

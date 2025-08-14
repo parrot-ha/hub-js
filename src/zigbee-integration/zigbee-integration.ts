@@ -32,15 +32,16 @@ import {
 import { sendZigbeeMessage } from "./zigbee-message-transformer";
 import fs from "fs";
 import { parse } from "./zigbee-message-parser";
+import { createUserDirectory, getHomeDir } from "../utils/file-utils";
 
 const logger = require("../hub/logger-service")({
   source: "ZigbeeIntegration",
 });
 const zigbeeHerdsmanLogger = require("../hub/logger-service")({
-  source: "ZigbeeHerdsman"
-})
+  source: "ZigbeeHerdsman",
+});
 
-const backup = "userData/zigbee/network.bak";
+const backup = `${getHomeDir()}zigbee/network.bak`;
 
 export default class ZigbeeIntegration
   extends DeviceIntegration
@@ -112,8 +113,8 @@ export default class ZigbeeIntegration
     //TODO: figure out how to discover a clear channel.
     let zigbeeChannelList: number[] = [20];
 
-    const DB = "userData/zigbee/devices.db";
-    const dbBackup = "userData/zigbee/devices.bak";
+    const DB = `${getHomeDir()}zigbee/devices.db`;
+    const dbBackup = `${getHomeDir()}zigbee/devices.bak`;
 
     if (serialPortName && adapterType) {
       let panID;
@@ -160,12 +161,7 @@ export default class ZigbeeIntegration
         zigbeeChannelList = [parseInt(zigbeeChannel)];
       }
       try {
-        if (!fs.existsSync("userData/")) {
-          fs.mkdirSync("userData/");
-        }
-        if (!fs.existsSync("userData/zigbee/")) {
-          fs.mkdirSync("userData/zigbee/");
-        }
+        createUserDirectory("zigbee");
 
         this._controller = new Controller({
           network: {
@@ -179,8 +175,8 @@ export default class ZigbeeIntegration
           backupPath: backup,
           databaseBackupPath: dbBackup,
           adapter: {
-            transmitPower: 20
-          }
+            transmitPower: 20,
+          },
         });
 
         this._controller.on("message", async (msg: MessagePayload) => {

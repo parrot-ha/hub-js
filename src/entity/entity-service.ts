@@ -5,7 +5,6 @@ import { SmartAppDelegate } from "../smartApp/smart-app-delegate";
 import { DeviceService } from "../device/device-service";
 import { SmartAppService } from "../smartApp/smart-app-service";
 import { ParrotEvent } from "./models/event";
-import { SmartApp } from "../smartApp/models/smart-app";
 import { Device } from "../device/models/device";
 import { DeviceHandler } from "../device/models/device-handler";
 import { InstalledSmartApp } from "../smartApp/models/installed-smart-app";
@@ -26,7 +25,6 @@ import { ServiceFactory } from "../hub/service-factory";
 import { DeviceWrapperList } from "../device/models/device-wrapper-list";
 import { ParrotEventWrapper } from "./models/event-wrapper";
 
-const fs = require("fs");
 const vm = require("vm");
 
 const logger = require("../hub/logger-service")({
@@ -301,18 +299,17 @@ export class EntityService extends EventEmitter {
   private getInstalledSmartAppMapping(id: string, params: any): any {
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
-    let smartApp: SmartApp = this._smartAppService.getSmartApp(
-      installedSmartApp.smartAppId,
-    );
     let retVal;
     let context = this.buildSmartAppSandbox(installedSmartApp, true);
     context["params"] = params;
 
-    const data = fs.readFileSync(smartApp.file);
+    const smartAppSource = this._smartAppService.getSmartAppSourceCode(
+      installedSmartApp.smartAppId,
+    );
 
     vm.createContext(context);
-    vm.runInContext(data.toString(), context, {
-      filename: `smartApp_${smartApp.id}.js`,
+    vm.runInContext(smartAppSource, context, {
+      filename: `smartApp_${installedSmartApp.smartAppId}.js`,
     });
     if (context.getPathMappings() != null) {
       return context.getPathMappings();
@@ -372,9 +369,6 @@ export class EntityService extends EventEmitter {
   ): any {
     let installedSmartApp: InstalledSmartApp =
       this._smartAppService.getInstalledSmartApp(id);
-    let smartApp: SmartApp = this._smartAppService.getSmartApp(
-      installedSmartApp.smartAppId,
-    );
     let retVal;
     let stateCopy = JSON.parse(JSON.stringify(installedSmartApp.state));
     let context = this.buildSmartAppSandbox(installedSmartApp);
@@ -386,12 +380,14 @@ export class EntityService extends EventEmitter {
 
     logger.debug("stateCopy", JSON.stringify(stateCopy));
 
-    const data = fs.readFileSync(smartApp.file);
+    const smartAppSource = this._smartAppService.getSmartAppSourceCode(
+      installedSmartApp.smartAppId,
+    );
 
     //TODO: can this context be saved and reused?
     vm.createContext(context);
-    vm.runInContext(data.toString(), context, {
-      filename: `smartApp_${smartApp.id}.js`,
+    vm.runInContext(smartAppSource, context, {
+      filename: `smartApp_${installedSmartApp.smartAppId}.js`,
     });
     if (typeof context[methodName] === "function") {
       let myFunction: Function = context[methodName];
@@ -584,18 +580,21 @@ export class EntityService extends EventEmitter {
 
   public removeDeviceAsync(id: string, force: boolean): Promise<boolean> {
     return new Promise((resolve) => {
-      let removeDevicePromise = this._deviceService.removeDeviceAsync(id, force);
-      if(removeDevicePromise != null) {
+      let removeDevicePromise = this._deviceService.removeDeviceAsync(
+        id,
+        force,
+      );
+      if (removeDevicePromise != null) {
         removeDevicePromise.then((result) => {
-          if(result) {
-            this.scheduleService.unschedule("DEVICE", id, null)
-            resolve(true)
+          if (result) {
+            this.scheduleService.unschedule("DEVICE", id, null);
+            resolve(true);
           } else {
-            resolve(false)
+            resolve(false);
           }
-        })
+        });
       }
-    })
+    });
   }
 
   public cancelRemoveDeviceAsync(id: string): void {
@@ -689,7 +688,7 @@ export class EntityService extends EventEmitter {
       let stateCopy = JSON.parse(JSON.stringify(device.state));
       let context = this.buildDeviceSandbox(device, deviceHandler);
       let returnVal = this.runEntityMethod(
-        deviceHandler.file,
+        this._deviceService.getDeviceHandlerSourceCode(deviceHandler.id),
         methodName,
         `deviceHandler_${deviceHandler.id}`,
         context,
@@ -748,7 +747,7 @@ export class EntityService extends EventEmitter {
   }
 
   private runEntityMethod(
-    file: string,
+    source: string,
     methodName: string,
     entityName: string,
     context: any,
@@ -757,12 +756,11 @@ export class EntityService extends EventEmitter {
     if (!context) {
       context = {};
     }
-    const data = fs.readFileSync(file);
 
     //TODO: can this context be saved and reused?
     vm.createContext(context, { microtaskMode: "afterEvaluate" });
     try {
-      vm.runInContext(data.toString(), context, {
+      vm.runInContext(source, context, {
         filename: `${entityName}.js`,
         microtaskMode: "afterEvaluate",
         timeout: 20000, // timeout after 20 seconds

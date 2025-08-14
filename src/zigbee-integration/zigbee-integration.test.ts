@@ -1,6 +1,8 @@
 import { describe, expect, test } from "@jest/globals";
 import ZigbeeIntegration from "./zigbee-integration";
 import { IntegrationService } from "../integration/integration-service";
+import { getHomeDir } from "../utils/file-utils";
+import fs from "fs";
 
 var messageFunc: any = null;
 var zclpFunc: any = null;
@@ -11,7 +13,7 @@ let getIntegrationConfigurationValueMock = jest.fn(
   (integrationId, configurationId) => {
     if (configurationId == "serialPortName") return "fakeSerial";
     return "";
-  }
+  },
 );
 
 let integrationService = {
@@ -62,7 +64,7 @@ jest.mock("zigbee-herdsman", () => {
         }),
         start: jest.fn(() => new Promise((resolve) => resolve(true))),
         getNetworkParameters: jest.fn(
-          () => new Promise((resolve) => resolve({panID: 58}))
+          () => new Promise((resolve) => resolve({ panID: 58 })),
         ),
         backup: jest.fn(),
         adapter: {
@@ -76,11 +78,23 @@ jest.mock("zigbee-herdsman", () => {
         },
       };
     }),
-    setLogger: jest.fn()
+    setLogger: jest.fn(),
   };
 });
 
+let deleteUserDir = false;
+
+afterAll(() => {
+  if (deleteUserDir) {
+    fs.rmdirSync(`${getHomeDir()}`, { recursive: true });
+  }
+});
+
 beforeAll(() => {
+  if (!fs.existsSync(getHomeDir())) {
+    deleteUserDir = true;
+    fs.mkdirSync(getHomeDir());
+  }
   expect(messageFunc).toBeNull();
   expect(zclpFunc).toBeNull();
 
@@ -131,7 +145,7 @@ describe("test process attribute report", () => {
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(
-      "read attr - raw: D5ED0100060A00001000, dni: D5ED, endpoint: 01, cluster: 0006, size: 0A, attrId: 0000, encoding: 10, command: 01, value: 00"
+      "read attr - raw: D5ED0100060A00001000, dni: D5ED, endpoint: 01, cluster: 0006, size: 0A, attrId: 0000, encoding: 10, command: 01, value: 00",
     );
 
     await new Promise((r) => setTimeout(r, 1000));
@@ -173,7 +187,7 @@ describe("test process attribute report", () => {
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(
-      "read attr - raw: 1B840102011C2300300024002100000201210000, dni: 1B84, endpoint: 01, cluster: 0201, size: 1C, attrId: 0023, encoding: 30, command: 0A, value: 0024002100000201210000"
+      "read attr - raw: 1B840102011C2300300024002100000201210000, dni: 1B84, endpoint: 01, cluster: 0201, size: 1C, attrId: 0023, encoding: 30, command: 0A, value: 0024002100000201210000",
     );
 
     await new Promise((r) => setTimeout(r, 1000));
@@ -212,7 +226,7 @@ describe("test process attribute report", () => {
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(
-      "read attr - raw: 1B840102010800013002, dni: 1B84, endpoint: 01, cluster: 0201, size: 08, attrId: 0100, encoding: 30, command: 0A, value: 02"
+      "read attr - raw: 1B840102010800013002, dni: 1B84, endpoint: 01, cluster: 0201, size: 08, attrId: 0100, encoding: 30, command: 0A, value: 02",
     );
 
     await new Promise((r) => setTimeout(r, 1000));

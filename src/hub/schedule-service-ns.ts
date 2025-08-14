@@ -1,9 +1,8 @@
 const scheduler = require("node-schedule");
 import { randomUUID } from "crypto";
 import { EntityService } from "../entity/entity-service";
-import YAML from "yaml";
-import fs from "fs";
 import { ScheduleService, ScheduleType } from "./schedule-service";
+import { deleteUserFile, parseUserYamlFile, readUserDir, saveUserYamlFile } from "../utils/file-utils";
 
 
 const logger = require("./logger-service")({
@@ -220,10 +219,7 @@ export class ScheduleServiceNS implements ScheduleService {
   private deleteJob(jobKey: string) {
     this._jobInfo.delete(jobKey);
     try {
-      let fileName: string = `userData/config/schedules/${jobKey}.yaml`;
-      if (fs.existsSync(fileName)) {
-        fs.unlinkSync(fileName);
-      }
+      deleteUserFile(`config/schedules/${jobKey}.yaml`);
     } catch (err) {
       logger.warn("Unable to delete schedule file" + jobKey);
     }
@@ -254,16 +250,7 @@ export class ScheduleServiceNS implements ScheduleService {
 
   private saveSchedule(jobKey: string, jobSchedule: ScheduleType) {
     this._jobInfo.set(jobKey, jobSchedule);
-    let jobScheduleYaml = YAML.stringify(jobSchedule);
-    if (jobScheduleYaml?.trim().length > 0) {
-      fs.writeFile(
-        `userData/config/schedules/${jobKey}.yaml`,
-        jobScheduleYaml,
-        (err: any) => {
-          if (err) throw err;
-        },
-      );
-    }
+    saveUserYamlFile(`config/schedules/${jobKey}.yaml`, jobSchedule, false);
   }
 
   private _loadedSchedules = false;
@@ -275,17 +262,11 @@ export class ScheduleServiceNS implements ScheduleService {
     this._loadedSchedules = true;
 
     try {
-      const schDirFiles: string[] = fs.readdirSync(
-        "userData/config/schedules/",
-      );
+      const schDirFiles: string[] = readUserDir("config/schedules/")  
       schDirFiles.forEach((schDirFile) => {
         try {
           if (schDirFile.endsWith(".yaml")) {
-            const data = fs.readFileSync(
-              `userData/config/schedules/${schDirFile}`,
-              "utf-8",
-            );
-            let parsedFile = YAML.parse(data);
+            const parsedFile = parseUserYamlFile("config", "schedules", schDirFile);
             let jobSchedule: ScheduleType = {
               jobKey: parsedFile.jobKey,
               jobType: parsedFile.jobType,
@@ -304,7 +285,7 @@ export class ScheduleServiceNS implements ScheduleService {
       });
     } catch (err) {
       logger.warn(
-        `Error loading files from userData/config/schedules/: ${err.message}`,
+        `Error loading files from config/schedules/: ${err.message}`,
       );
     }
   }
