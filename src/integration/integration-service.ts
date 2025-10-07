@@ -19,6 +19,9 @@ import { ResetIntegrationExtension } from "./reset-integration-extension";
 import { randomUUID } from "crypto";
 import { DeviceScanIntegrationExtension } from "./device-scan-integration-extension";
 import { Device } from "../device/models/device";
+import { PackageService } from "../package/package-service";
+import * as fs from "fs";
+import * as path from "path";
 const logger = require("../hub/logger-service")({
   source: "IntegrationService",
 });
@@ -28,6 +31,7 @@ export class IntegrationService {
   private _integrationRegistry: IntegrationRegistry;
   private _entityService: EntityService;
   private _deviceService: DeviceService;
+  private _packageService: PackageService;
 
   private _integrationMap: Map<string, AbstractIntegration>;
   private _integrationTypeMap: Map<string, any>;
@@ -38,11 +42,13 @@ export class IntegrationService {
     integrationRegistry: IntegrationRegistry,
     entityService: EntityService,
     deviceService: DeviceService,
+    packageService: PackageService,
   ) {
     this._integrationDataStore = integrationDataStore;
     this._integrationRegistry = integrationRegistry;
     this._entityService = entityService;
     this._deviceService = deviceService;
+    this._packageService = packageService;
   }
 
   public getIntegrationTypes(): any[] {
@@ -320,10 +326,7 @@ export class IntegrationService {
   private loadIntegrationTypes(): Map<string, any> {
     let integrations = new Map<string, any>();
 
-    //TODO: load integrations built in
-    //TODO: make this dynamic, not hard coded
-
-    //return new Promise<any>((resolve) => {
+    // load integrations built in
     let importName = "../lan-integration/lan-integration";
     let IntegrationClass = require(importName).default;
     let integration: AbstractIntegration = new IntegrationClass();
@@ -349,6 +352,48 @@ export class IntegrationService {
       description: integration2.description,
     };
     integrations.set(zigbeeIntegrationObj.id, zigbeeIntegrationObj);
+
+    // load packages
+    let packages = this._packageService.getPackages();
+    for (const packageName of packages) {
+      try {
+        const packagePath = path.resolve("userData/packages", packageName);
+        const packageJsonPath = path.join(packagePath, "package.json");
+
+        if (!fs.existsSync(packageJsonPath)) {
+          logger.warn(`package.json not found for package ${packageName}`);
+          continue;
+        }
+
+        const packageJson = JSON.parse(
+          fs.readFileSync(packageJsonPath, "utf8"),
+        );
+        const mainFile = packageJson.main;
+
+        if (!mainFile) {
+          logger.warn(
+            `'main' field not found in package.json for ${packageName}`,
+          );
+          continue;
+        }
+
+        const packageImportName = path.join(packagePath, mainFile);
+
+        let PackageIntegrationClass = require(packageImportName).default;
+        let packageIntegration: AbstractIntegration =
+          new PackageIntegrationClass();
+        let packageIntegrationObj = {
+          id: randomUUID(),
+          type: "PACKAGE",
+          name: packageIntegration.name,
+          importName: packageImportName,
+          description: packageIntegration.description,
+        };
+        integrations.set(packageIntegrationObj.id, packageIntegrationObj);
+      } catch (err) {
+        logger.warn(`Error loading package ${packageName}`, err);
+      }
+    }
 
     return integrations;
   }
