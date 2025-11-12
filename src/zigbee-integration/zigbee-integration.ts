@@ -22,6 +22,7 @@ import {
   PermitJoinChangedPayload,
 } from "zigbee-herdsman/dist/controller/events";
 import { Device as ZigbeeDevice } from "zigbee-herdsman/dist/controller/model";
+import { InterviewState } from "zigbee-herdsman/dist/controller/model/device";
 import { ZclPayload } from "zigbee-herdsman/dist/adapter/events";
 import { isEmpty, isNotBlank } from "../utils/string-utils";
 import {
@@ -322,7 +323,7 @@ export default class ZigbeeIntegration
     if (msg.device) {
       // new device announced
       // send event, service should handle updated device
-      if (msg.device.interviewCompleted) {
+      if (msg.device.interviewState === InterviewState.Successful || msg.device.interviewState === InterviewState.Failed) {
         let additionalParams: Map<string, string> = new Map<string, string>();
 
         additionalParams.set("zigbeeId", msg.device.ieeeAddr);
@@ -340,6 +341,7 @@ export default class ZigbeeIntegration
       }
     }
   }
+  
   private deviceLeave(msg: DeviceLeavePayload) {
     console.log("deviceLeave", msg);
     if (msg.ieeeAddr) {
@@ -451,7 +453,10 @@ export default class ZigbeeIntegration
   }
 
   public stop(): Promise<any> {
-    return this._controller.stop();
+    if(this._controller != null)
+      return this._controller.stop();
+    else 
+      return Promise.resolve();
   }
 
   public getPreferencesLayout(): any {

@@ -1,4 +1,4 @@
-import { deleteWhitespace, isNotEmpty } from "../utils/string-utils";
+import { deleteWhitespace, isNotEmpty, stringToObject } from "../utils/string-utils";
 import {
   hexStringToInt,
   hexStringToNumberArray,
@@ -14,6 +14,34 @@ const logger = require("../hub/logger-service")({
 });
 
 export function sendZigbeeMessage(msg: string, controller: any) {
+  if (
+    msg.startsWith("zh cmd")
+  ) {
+    if (logger.isDebugEnabled()) {
+      logger.debug("Sending cmd! " + msg);
+    }
+    msg = msg.substring("zh cmd ".length);
+    let msgParts = msg.split(" ");
+
+    let networkAddress = getIntegerValueForString(msgParts[0].trim());
+    let endpointInt = getIntegerValueForString(msgParts[1].trim());
+    let cluster = getIntegerValueForString(msgParts[2].trim());
+    let command = msgParts[3].trim();
+    let payloadStr = extractPayload(msg);
+    let manufacturer = extractManufacturerCode(msg);
+
+    let zbDevice: ZigbeeDevice =
+      controller.getDeviceByNetworkAddress(networkAddress);
+    let endpoint: Endpoint = zbDevice.getEndpoint(endpointInt);
+
+    let options: { manufacturerCode?: number } = {};
+    if (manufacturer != null) {
+      options.manufacturerCode = manufacturer;
+    }
+    let payload = stringToObject(payloadStr, ",", ":", false);
+    logger.debug(JSON.stringify(payload));
+    endpoint.command(cluster, command, payload, options);
+  }
   if (
     msg.startsWith("ph cmd") ||
     msg.startsWith("st cmd") ||
