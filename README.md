@@ -4,7 +4,7 @@ Smart home hub that implements the same api as SmartThings but written in Typesc
 This is currently a POC and you can expect multiple breaking changes as it matures.
 
 Requirements:
-NodeJS (currently being developed on nodejs v18)
+NodeJS (currently being developed on nodejs v24)
 
 Running:
 1. clone repository.
