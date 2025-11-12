@@ -31,7 +31,7 @@ export function length(str: string): number {
   return str == null ? 0 : str.length;
 }
 
-export function stringToObject( stringToSplit: string,  entrySeparator: string,  keyValueSeparator: string): any {
+export function stringToObject( stringToSplit: string,  entrySeparator: string,  keyValueSeparator: string, blankIsNull: boolean = true): any {
   let map: any = {};
   let stringToSplitArray: string[] = stringToSplit.split(entrySeparator);
   for (let mapEntryString of stringToSplitArray) {
@@ -40,12 +40,12 @@ export function stringToObject( stringToSplit: string,  entrySeparator: string, 
           let mapEntryStringArray = [mapEntryString.substring(0, keyValueSeparatorIndex), mapEntryString.substring(keyValueSeparatorIndex+1)];//mapEntryString.split(keyValueSeparator);
           if (mapEntryStringArray.length > 1) {
               if (isBlank(mapEntryStringArray[1])) {
-                  map[mapEntryStringArray[0]] = null;
+                  map[mapEntryStringArray[0]] = blankIsNull ? null : "";
               } else {
                   map[mapEntryStringArray[0].trim()] = mapEntryStringArray[1].trim();
               }
           } else {
-              map[mapEntryStringArray[0].trim()] = null;
+              map[mapEntryStringArray[0].trim()] = blankIsNull ? null : "";
           }
       } else {
           let key = mapEntryString.trim()
