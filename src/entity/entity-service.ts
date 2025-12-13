@@ -696,7 +696,6 @@ export class EntityService extends EventEmitter {
       );
       if (methodName === "parse") {
         // handle maps returned by parse as events
-        //TODO: handle events
         this.processParseResponse(device, returnVal);
       } else {
         this._deviceService.processReturnObj(device, returnVal);
