@@ -22,12 +22,12 @@ describe("test send zigbee message", () => {
       "ph cr 0x1234 0x01 0x0402 0x0000 0x29 0x000a 0xa8c0 {3200} {}",
       controller
     );
-    expect(getDeviceByNetworkAddressMock).toBeCalledTimes(1);
+    expect(getDeviceByNetworkAddressMock).toHaveBeenCalledTimes(1);
     expect(getDeviceByNetworkAddressMock.mock.calls[0][0]).toBe(0x1234);
-    expect(getEndpointMock).toBeCalledTimes(1);
+    expect(getEndpointMock).toHaveBeenCalledTimes(1);
     expect(getEndpointMock.mock.calls[0][0]).toBe(1);
     // expect 1 call to configureReporting
-    expect(configureReportingMock).toBeCalledTimes(1);
+    expect(configureReportingMock).toHaveBeenCalledTimes(1);
     //expect first param to be cluster
     expect(configureReportingMock.mock.calls[0][0]).toBe(0x0402);
     // param2
