@@ -623,7 +623,7 @@ export default class ZigbeeIntegration
 
   public startScan(options: Object): boolean {
     //TODO: listen for events from coordinator
-    this._controller.permitJoin(true, null, 90);
+    this._controller.permitJoin(90);
     console.log("start scan");
     this._joinMode = true;
     this._joinStart = Date.now();
@@ -631,7 +631,7 @@ export default class ZigbeeIntegration
   }
 
   public stopScan(options: Object): boolean {
-    this._controller.permitJoin(false);
+    this._controller.permitJoin(0);
     this._joinMode = false;
     return true;
   }
