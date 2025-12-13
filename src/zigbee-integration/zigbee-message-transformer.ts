@@ -41,8 +41,7 @@ export function sendZigbeeMessage(msg: string, controller: any) {
     let payload = stringToObject(payloadStr, ",", ":", false);
     logger.debug(JSON.stringify(payload));
     endpoint.command(cluster, command, payload, options);
-  }
-  if (
+  } else if (
     msg.startsWith("ph cmd") ||
     msg.startsWith("st cmd") ||
     msg.startsWith("he cmd")
@@ -88,7 +87,7 @@ export function sendZigbeeMessage(msg: string, controller: any) {
 
     endpoint
       .command(cluster, command, payload, options)
-      .then(() => {})
+      .then(() => { })
       .catch((err) => {
         logger.warn("error with endpoint command", err);
       });
@@ -116,9 +115,41 @@ export function sendZigbeeMessage(msg: string, controller: any) {
 
     endpoint
       .read(cluster, [attribute], options)
-      .then((data) => {})
+      .then((data) => { })
       .catch((err) => {
         logger.warn("error with endpoint read", err);
+      });
+  } else if (
+    msg.startsWith("ph wattr") ||
+    msg.startsWith("st wattr") ||
+    msg.startsWith("he wattr")
+  ) {
+    //ph wattr 0xb8cc 0x02 0x0101 0x0032 0x10 {01} {}
+    msg = msg.substring("ph wattr ".length);
+    let msgParts = msg.split(" ");
+    let networkAddress = getIntegerValueForString(msgParts[0].trim());
+    let endpointInt = getIntegerValueForString(msgParts[1].trim());
+    let cluster = getIntegerValueForString(msgParts[2].trim());
+    let attribute = getIntegerValueForString(msgParts[3].trim());
+    let dataType = getIntegerValueForString(msgParts[4].trim());
+    let value = extractPayload(msg);
+
+    let manufacturer = extractManufacturerCode(msg);
+
+    let zbDevice: ZigbeeDevice =
+      controller.getDeviceByNetworkAddress(networkAddress);
+    let endpoint: Endpoint = zbDevice.getEndpoint(endpointInt);
+
+    let options: { manufacturerCode?: number } = {};
+    if (manufacturer != null) {
+      options.manufacturerCode = manufacturer;
+    }
+
+    endpoint
+      .write(cluster, { [attribute]: { value: value, type: dataType } }, options)
+      .then((data) => { })
+      .catch((err) => {
+        logger.warn("error with endpoint write", err);
       });
   } else if (
     msg.startsWith("ph cr ") ||
@@ -165,7 +196,7 @@ export function sendZigbeeMessage(msg: string, controller: any) {
 
     endpoint
       .configureReporting(cluster, [configureReportingItem], options)
-      .then(() => {})
+      .then(() => { })
       .catch((err) => {
         logger.warn("error with endpoint configure reporting", err);
       });
@@ -187,7 +218,7 @@ export function sendZigbeeMessage(msg: string, controller: any) {
       let coordinatorDevice = coordinatorDeviceArray[0] as ZigbeeDevice;
       endpoint
         .bind(cluster, coordinatorDevice.getEndpoint(destEndpoint))
-        .then(() => {})
+        .then(() => { })
         .catch((err) => {
           logger.warn("error with endpoint bind", err);
         });

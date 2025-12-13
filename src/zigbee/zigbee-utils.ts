@@ -23,6 +23,14 @@ export class ZigBeeUtils {
     this._device = device;
   }
 
+  public convertToHexString(value: number, length: number): string {
+    return numberToHexString(value, length);
+  }
+
+  public swapEndianHex(hexString: string): string {
+    return reverseHexString(hexString);
+  }
+
   public parseZoneStatus(description: string): ZoneStatus {
     // example: zone status 0x0000 -- extended status 0x00
     let zoneStatusArray: string[] = description.split("--");
@@ -174,7 +182,7 @@ export class ZigBeeUtils {
   }
 
   public off(delay: number = ZigBeeUtils.DEFAULT_DELAY): Array<string> {
-  return this.command(6, 0, "", {}, delay);
+    return this.command(6, 0, "", {}, delay);
   }
 
   public onOffRefresh(delay: number = ZigBeeUtils.DEFAULT_DELAY): Array<string> {
@@ -218,8 +226,7 @@ export class ZigBeeUtils {
     let destEndpoint = 1;
     let arrayList: Array<string> = new Array<string>();
     arrayList.push(
-      `zdo bind 0x${
-        this._device.deviceNetworkId
+      `zdo bind 0x${this._device.deviceNetworkId
       } 0x${this.getFormattedDeviceEndpoint()} 0x${numberToHexString(
         destEndpoint,
         1
@@ -238,8 +245,7 @@ export class ZigBeeUtils {
       mfgCode = additionalParams.mfgCode.toString();
     }
     arrayList.push(
-      `ph cr 0x${
-        this._device.deviceNetworkId
+      `ph cr 0x${this._device.deviceNetworkId
       } 0x${this.getFormattedDeviceEndpoint()} 0x${numberToHexString(
         clusterId,
         2
@@ -249,10 +255,9 @@ export class ZigBeeUtils {
       )} 0x${numberToHexString(minReportTime, 2)} 0x${numberToHexString(
         maxReportTime,
         2
-      )} {${
-        reportableChange != null
-          ? DataType.pack(reportableChange, dataType)
-          : ""
+      )} {${reportableChange != null
+        ? DataType.pack(reportableChange, dataType)
+        : ""
       }} {${mfgCode}}`
     );
 
@@ -263,7 +268,7 @@ export class ZigBeeUtils {
     return arrayList;
   }
 
-public readAttribute(
+  public readAttribute(
     clusterId: number,
     attributeId: number,
     additionalParams: AdditionalParamsType = {},
@@ -339,8 +344,7 @@ public readAttribute(
       )} 0x${numberToHexString(clusterId, 2)} 0x${numberToHexString(
         attributeId,
         2
-      )} 0x${numberToHexString(dataType, 1)} {${stringValue}} {${
-        mfgCode > -1 ? numberToHexString(mfgCode, 2) : ""
+      )} 0x${numberToHexString(dataType, 1)} {${stringValue}} {${mfgCode > -1 ? numberToHexString(mfgCode, 2) : ""
       }}`
     );
 
@@ -367,7 +371,7 @@ public readAttribute(
   ): Array<string> {
     return this.configureReporting(8, 0, 0x20, minReportTime, maxReportTime, reportableChange, null, delay);
   }
-  
+
   public levelRefresh(delay: number = ZigBeeUtils.DEFAULT_DELAY): Array<string> {
     return this.readAttribute(0x0008, 0x0000, null, delay);
   }
@@ -391,7 +395,7 @@ public readAttribute(
       rate = 100;
     }
 
-    return this.command(0x0008, 0x04, numberToHexString(level,1) + " " + DataType.pack(rate, DataType.UINT16, true));
+    return this.command(0x0008, 0x04, numberToHexString(level, 1) + " " + DataType.pack(rate, DataType.UINT16, true));
   }
 
   public command(
@@ -415,8 +419,7 @@ public readAttribute(
       )} 0x${numberToHexString(cluster, 2)} 0x${numberToHexString(
         command,
         1
-      )} {${payload != null ? payload : ""}} {${
-        mfgCode > -1 ? numberToHexString(mfgCode, 2) : ""
+      )} {${payload != null ? payload : ""}} {${mfgCode > -1 ? numberToHexString(mfgCode, 2) : ""
       }}`
     );
 

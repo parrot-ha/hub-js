@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import { DeviceWrapper } from "../../device/models/device-wrapper";
 import { State } from "../../device/models/state";
+import { Device } from "../../device/models/device";
 
 export class ParrotEvent {
   id: string;
@@ -19,7 +20,7 @@ export class ParrotEvent {
   sourceId: string | undefined;
   isDigital: boolean | undefined;
 
-  constructor(properties: any, deviceWrapper: DeviceWrapper = null) {
+  constructor(properties: any, deviceWrapper: DeviceWrapper | Device = null) {
     this.id = crypto.randomUUID();
     this.date = new Date();
     this._isStateChange = false;

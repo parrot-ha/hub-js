@@ -65,7 +65,7 @@ export function difference(
 /**
  * Returns undefined if object cannot be coverted
  *
- * @param obj An object to conver to a number
+ * @param obj An object to convert to a number
  */
 export function toInteger(obj: any): number {
   if (!obj) return;
