@@ -87,6 +87,13 @@ export class Device {
     this._currentStates = currentStates;
   }
 
+  public currentState(attributeName: string): State {
+    if (!this._currentStates) {
+      return null;
+    }
+    return this._currentStates.get(attributeName);
+  }
+
   public getCurrentState(attributeName: string): State {
     if (!this._currentStates) {
       return null;

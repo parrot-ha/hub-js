@@ -20,6 +20,11 @@ Below are some docs imported from the README that was auto generated during ui s
 
 This template should help get you started developing with Vue 3 in Vite.
 
+## Running with pm2
+
+```NODE_ENV=production pm2 start npm --name "hub-js" -- start```
+```pm2 save```
+
 ## Recommended IDE Setup
 
 [VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).

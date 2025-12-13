@@ -11,6 +11,26 @@ import { DeviceHandler } from "../../device/models/device-handler";
 
 const express = require("express");
 
+
+function castArgs(args: any[]): any[] | any {
+  if (args == null || args.length === 0) {
+    return null;
+  }
+
+  let castArgs = args.map((arg) => {
+    let argType = arg.dataType.toUpperCase();
+    if (argType === "NUMBER") {
+      return Number(arg.value.toString());
+    } else {
+      return arg.value.toString();
+    }
+  });
+  if (castArgs.length === 1) {
+    return castArgs[0];
+  }
+  return castArgs;
+}
+
 module.exports = function (
   deviceService: DeviceService,
   entityService: EntityService
@@ -251,7 +271,7 @@ module.exports = function (
     const command = req.params.command;
     const body = req.body;
     if (body != null && Array.isArray(body) && body.length > 0) {
-      entityService.runDeviceMethod(deviceId, command, body);
+      entityService.runDeviceMethod(deviceId, command, castArgs(body));
     } else {
       entityService.runDeviceMethod(deviceId, command, null);
     }
