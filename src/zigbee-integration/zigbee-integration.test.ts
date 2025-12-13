@@ -141,7 +141,7 @@ describe("test process attribute report", () => {
     await new Promise((r) => setTimeout(r, 500));
 
     zclpFunc(zclPayload);
-    expect(mockSendEvent).toBeCalledTimes(1);
+    expect(mockSendEvent).toHaveBeenCalledTimes(1);
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(
@@ -183,7 +183,7 @@ describe("test process attribute report", () => {
     await new Promise((r) => setTimeout(r, 500));
 
     zclpFunc(zclPayload);
-    expect(mockSendEvent).toBeCalledTimes(1);
+    expect(mockSendEvent).toHaveBeenCalledTimes(1);
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(
@@ -222,7 +222,7 @@ describe("test process attribute report", () => {
     await new Promise((r) => setTimeout(r, 500));
 
     zclpFunc(zclPayload);
-    expect(mockSendEvent).toBeCalledTimes(1);
+    expect(mockSendEvent).toHaveBeenCalledTimes(1);
     expect(mockSendEvent.mock.calls[0][0]).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBeDefined();
     expect(mockSendEvent.mock.calls[0][0].message).toBe(

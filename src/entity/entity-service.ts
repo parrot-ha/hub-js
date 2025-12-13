@@ -54,7 +54,7 @@ export class EntityService extends EventEmitter {
     return ServiceFactory.getInstance().getScheduleService();
   }
 
-  sendDeviceEvent(properties: any, device: DeviceWrapper): void {
+  sendDeviceEvent(properties: any, device: DeviceWrapper | Device): void {
     logger.silly("send device event!");
     if (!properties) {
       return;
@@ -108,7 +108,7 @@ export class EntityService extends EventEmitter {
           subscription.handlerMethod,
           [event],
         )
-          .then(() => {})
+          .then(() => { })
           .catch((err) => logger.warn("Error with runSmartAppMethod ", err));
       } catch (err) {
         logger.warn("Error running smart app method", err);
@@ -694,11 +694,31 @@ export class EntityService extends EventEmitter {
         context,
         args,
       );
-      this._deviceService.processReturnObj(device, returnVal);
+      if (methodName === "parse") {
+        // handle maps returned by parse as events
+        this.processParseResponse(device, returnVal);
+      } else {
+        this._deviceService.processReturnObj(device, returnVal);
+      }
       //update state
       this._deviceService.saveDeviceState(device.id, stateCopy, context.state);
     } catch (err) {
       logger.warn("err with run device method", err);
+    }
+  }
+
+  private processParseResponse(device: Device, retObj: any): void {
+    if (retObj === null || retObj === undefined) {
+      return;
+    }
+    if (Array.isArray(retObj) && retObj.length > 0) {
+      retObj.forEach((singleRetObj) => {
+        this.processParseResponse(device, singleRetObj);
+      });
+    } else if (Object.prototype.toString.call(retObj) === '[object Object]') {
+      this.sendDeviceEvent(retObj, device)
+    } else if (retObj != null) {
+      logger.warn("Invalid type returned from parse: " + retObj.getClass().getName());
     }
   }
 
@@ -723,7 +743,7 @@ export class EntityService extends EventEmitter {
       );
     });
 
-    sandbox["metadata"] = () => {};
+    sandbox["metadata"] = () => { };
     sandbox["device"] = this.buildDeviceWrapper(device);
     sandbox["zigbee"] = new ZigBeeUtils(
       new DeviceWrapper(device, this._deviceService, this),

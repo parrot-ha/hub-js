@@ -43,7 +43,7 @@ describe("Test integration events", () => {
       deviceUpdatedEvent
     );
 
-    expect(deviceService.getDevices).toBeCalledTimes(1);
-    expect(deviceService.updateDevice).toBeCalledTimes(1);
+    expect(deviceService.getDevices).toHaveBeenCalledTimes(1);
+    expect(deviceService.updateDevice).toHaveBeenCalledTimes(1);
   });
 });
