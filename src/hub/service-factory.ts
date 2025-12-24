@@ -12,6 +12,8 @@ import { IntegrationService } from "../integration/integration-service";
 import { IntegrationFileDataStore } from "../integration/integration-file-data-store";
 import { IntegrationRegistry } from "../integration/integration-registry";
 import { EventMemoryDataStore } from "./event-memory-data-store";
+import { PackageService } from "../package/package-service";
+import { PackageFileDataStore } from "../package/package-file-data-store";
 
 export class ServiceFactory {
   private static _instance: ServiceFactory;
@@ -97,7 +99,8 @@ export class ServiceFactory {
         new IntegrationFileDataStore(),
         this.getIntegrationRegistry(),
         this.getEntityService(),
-        this.getDeviceService()
+        this.getDeviceService(),
+        this.getPackageService()
       );
     }
     return this._integrationService;
@@ -110,5 +113,14 @@ export class ServiceFactory {
       this._integrationRegistry = new IntegrationRegistry();
     }
     return this._integrationRegistry;
+  }
+
+  private _packageService: PackageService;
+
+  public getPackageService(): PackageService {
+    if (!this._packageService) {
+      this._packageService = new PackageService(new PackageFileDataStore());
+    }
+    return this._packageService;
   }
 }
